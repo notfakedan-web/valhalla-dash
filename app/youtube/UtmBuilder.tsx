@@ -1,18 +1,15 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Copy, Youtube, TrendingUp, DollarSign, Link as LinkIcon, Image as ImageIcon, X } from 'lucide-react';
+import { Copy, Youtube, TrendingUp, DollarSign, Link as LinkIcon, Image as ImageIcon, X, Users } from 'lucide-react';
 
 export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
   const [baseUrl, setBaseUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [generatedLink, setGeneratedLink] = useState('');
-  
-  // State to manage visible videos (hiding deleted ones)
   const [hiddenVideos, setHiddenVideos] = useState<string[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load "Deleted" videos from memory on startup
   useEffect(() => {
     const saved = localStorage.getItem('valhalla_hidden_videos');
     if (saved) setHiddenVideos(JSON.parse(saved));
@@ -21,7 +18,6 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
 
   const generateLink = () => {
     if (!baseUrl || !videoUrl) return;
-    
     let videoId = '';
     try {
         if (videoUrl.includes('youtu.be/')) videoId = videoUrl.split('youtu.be/')[1].split('?')[0];
@@ -30,7 +26,6 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
 
     const separator = baseUrl.includes('?') ? '&' : '?';
     const finalUrl = `${baseUrl}${separator}utm_source=youtube&utm_medium=social&utm_content=${videoId}&utm_campaign=organic`;
-    
     setGeneratedLink(finalUrl);
   };
 
@@ -45,15 +40,14 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
       localStorage.setItem('valhalla_hidden_videos', JSON.stringify(newHidden));
   };
 
-  // Filter out the hidden videos
   const visibleVideos = videoStats.filter(v => !hiddenVideos.includes(v.id));
 
-  if (!isLoaded) return null; // Prevent hydration mismatch
+  if (!isLoaded) return null;
 
   return (
     <div className="space-y-8">
       
-      {/* 1. BUILDER */}
+      {/* BUILDER */}
       <div className="bg-[#0c0c0c] border border-zinc-800/50 p-8 rounded-[32px] shadow-inner relative overflow-hidden group">
         <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
             <Youtube size={140} />
@@ -85,10 +79,7 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
                 </div>
             </div>
 
-            <button 
-                onClick={generateLink}
-                className="w-full bg-white text-black font-black uppercase tracking-widest py-4 rounded-xl hover:bg-cyan-400 hover:scale-[1.01] transition-all mb-6"
-            >
+            <button onClick={generateLink} className="w-full bg-white text-black font-black uppercase tracking-widest py-4 rounded-xl hover:bg-cyan-400 hover:scale-[1.01] transition-all mb-6">
                 Generate Tracking Link
             </button>
 
@@ -106,7 +97,7 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
         </div>
       </div>
 
-      {/* 2. ROI GRID */}
+      {/* VIDEO CARDS */}
       <div className="flex items-center justify-between mt-12 mb-6">
         <h3 className="text-xl font-black uppercase italic text-white">Video ROI <span className="text-red-500">Intelligence</span></h3>
         <div className="flex items-center gap-4">
@@ -126,10 +117,13 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {visibleVideos.map((vid, i) => (
-              <div key={vid.id} className="bg-zinc-900/40 border border-zinc-800/50 rounded-3xl hover:border-red-500/30 transition-all group relative overflow-hidden flex flex-col animate-in fade-in zoom-in duration-300">
+          {visibleVideos.map((vid, i) => {
+              const qualPercent = vid.leads > 0 ? (vid.qualified / vid.leads) * 100 : 0;
+              
+              return (
+              <div key={vid.id} className="bg-zinc-900/40 border border-zinc-800/50 rounded-3xl hover:border-red-500/30 transition-all group relative overflow-hidden flex flex-col">
                   
-                  {/* THUMBNAIL AREA */}
+                  {/* THUMBNAIL */}
                   <div className="h-40 w-full relative bg-zinc-800/50 overflow-hidden group/image">
                       {vid.thumbnail ? (
                           <img src={vid.thumbnail} alt={vid.title} className="w-full h-full object-cover group-hover/image:scale-105 transition-transform duration-500" />
@@ -137,30 +131,27 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
                           <div className="w-full h-full flex items-center justify-center text-zinc-700"><ImageIcon size={40} /></div>
                       )}
                       
-                      {/* Rank Badge */}
                       <div className="absolute top-0 left-0 bg-black/80 px-3 py-1 rounded-br-xl border-r border-b border-zinc-800 backdrop-blur-sm z-10">
                           <span className="text-[10px] font-black text-white">#{i + 1}</span>
                       </div>
 
-                      {/* DELETE BUTTON (Hover Only) */}
                       <button 
                           onClick={(e) => { e.stopPropagation(); handleDelete(vid.id); }}
                           className="absolute top-2 right-2 p-2 bg-black/60 hover:bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 backdrop-blur-md z-20"
-                          title="Hide Video"
                       >
                           <X size={14} />
                       </button>
                   </div>
 
-                  {/* CONTENT */}
+                  {/* INFO */}
                   <div className="p-6 flex-1 flex flex-col">
                       <h4 className="text-sm font-bold text-white mb-4 line-clamp-2 leading-tight min-h-[40px]" title={vid.title}>
                           {vid.title}
                       </h4>
                       
-                      <div className="grid grid-cols-2 gap-4 border-t border-zinc-800/50 pt-4 mt-auto">
+                      {/* MONEY ROW */}
+                      <div className="grid grid-cols-2 gap-4 border-t border-zinc-800/50 pt-4 mt-auto mb-4">
                           <div>
-                              {/* UPDATED LABEL TO REVENUE */}
                               <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Revenue</p>
                               <div className="flex items-center gap-2">
                                   <TrendingUp size={12} className="text-cyan-500" />
@@ -168,7 +159,6 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
                               </div>
                           </div>
                           <div>
-                              {/* UPDATED LABEL TO CASH COLLECTED */}
                               <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Cash Collected</p>
                               <div className="flex items-center gap-2">
                                   <DollarSign size={12} className="text-green-500" />
@@ -177,17 +167,36 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
                           </div>
                       </div>
 
-                      <div className="mt-4 pt-4 border-t border-zinc-800/50 flex justify-between items-center">
-                           <span className="text-[9px] font-bold text-zinc-600 uppercase">Leads Generated</span>
-                           <span className="text-xs font-black text-white">{vid.leads}</span>
+                      {/* LEADS & QUALITY BAR */}
+                      <div className="bg-zinc-900/60 p-4 rounded-xl border border-zinc-800/50">
+                          <div className="flex justify-between items-end mb-2">
+                              <div>
+                                  <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Leads Generated</p>
+                                  <div className="flex items-center gap-1.5">
+                                      <Users size={12} className="text-white" />
+                                      <span className="text-sm font-black text-white">{vid.leads}</span>
+                                      <span className="text-[9px] text-zinc-500 font-bold ml-1">Total</span>
+                                  </div>
+                              </div>
+                              <div className="text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                      <span className="text-sm font-black text-cyan-400">{vid.qualified}</span>
+                                      <span className="text-[9px] font-bold text-zinc-400 uppercase">Qualified</span>
+                                  </div>
+                                  <div className="text-[9px] font-bold text-zinc-600 uppercase">{qualPercent.toFixed(0)}% Rate</div>
+                              </div>
+                          </div>
+                          
+                          {/* THE BAR */}
+                          <div className="w-full h-2 bg-zinc-700 rounded-full overflow-hidden flex">
+                              <div className="h-full bg-cyan-500" style={{ width: `${qualPercent}%` }} />
+                          </div>
                       </div>
 
-                      <div className="mt-4 w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-gradient-to-r from-red-600 to-red-400" style={{ width: `${(vid.cash / Math.max(...visibleVideos.map((v:any) => v.cash), 1)) * 100}%` }} />
-                      </div>
                   </div>
               </div>
-          ))}
+              );
+          })}
       </div>
     </div>
   );

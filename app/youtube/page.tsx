@@ -14,67 +14,58 @@ async function getYouTubeAttribution() {
     });
 
     // 1. FETCH SALES DATA (Original Sheet)
-    // Row C = Prospect Name, Row H = Cash Collected, Row I (assumed) = Revenue
     const salesDoc = new GoogleSpreadsheet(process.env.SHEET_ID!, serviceAccountAuth);
     await salesDoc.loadInfo();
     const salesSheet = salesDoc.sheetsByIndex[0];
     const salesRows = await salesSheet.getRows();
 
-    // Map: Cleaned Name -> { cash, revenue }
     const salesMap = new Map<string, { cash: number, revenue: number }>();
-    
     salesRows.forEach(row => {
-        // Safe get function for headers
         const get = (h: string) => {
             const k = salesSheet.headerValues.find(header => header.toLowerCase().includes(h.toLowerCase()));
             return k ? row.get(k) : '';
         };
-
-        // Normalize Name: Lowercase, trimmed
         const name = (get('Prospect Name') || get('Name') || '').toString().trim().toLowerCase();
-        
-        // Parse money strings "$1,000" -> 1000
         const parseMoney = (val: string) => parseFloat(val?.toString().replace(/[$, ]/g, '') || '0');
-        const cash = parseMoney(get('Cash Collected')); // Row H
-        const rev = parseMoney(get('Revenue Generated')); // Row I (Assumed based on "rev on row")
-
         if (name) {
             const existing = salesMap.get(name) || { cash: 0, revenue: 0 };
             salesMap.set(name, { 
-                cash: existing.cash + cash, 
-                revenue: existing.revenue + rev 
+                cash: existing.cash + parseMoney(get('Cash Collected')), 
+                revenue: existing.revenue + parseMoney(get('Revenue Generated')) 
             });
         }
     });
 
     // 2. FETCH LEADS DATA (Lead Flow Sheet)
-    // Row R = utm_content (Video ID)
     const leadsDoc = new GoogleSpreadsheet(process.env.LEAD_FLOW_SHEET_ID!, serviceAccountAuth);
     await leadsDoc.loadInfo();
     const leadsSheet = leadsDoc.sheetsByIndex[0];
     const leadsRows = await leadsSheet.getRows();
 
-    // 3. ATTRIBUTE SALES TO VIDEOS
     const videoStats = new Map<string, { id: string, leads: number, cash: number, revenue: number }>();
 
     leadsRows.forEach(row => {
-        // Mapping based on your prompt: 
-        // Row R = utm_content
         const getLeadVal = (search: string) => {
              const k = leadsSheet.headerValues.find(h => h.toLowerCase().includes(search.toLowerCase()));
              return k ? row.get(k) : '';
         };
 
-        // Get Video ID from utm_content (Row R)
-        const videoId = getLeadVal('utm_content') || getLeadVal('content') || 'Unknown Video';
+        // ROBUST ID EXTRACTION: Handles full URLs or raw IDs
+        const rawContent = getLeadVal('utm_content') || getLeadVal('content') || '';
+        let videoId = 'Unknown Video';
         
-        // Get Name to match with Sales
-        const leadName = (getLeadVal('Name') || '').toString().trim().toLowerCase();
+        if (rawContent) {
+            try {
+                if (rawContent.includes('youtu.be/')) videoId = rawContent.split('youtu.be/')[1].split('?')[0];
+                else if (rawContent.includes('v=')) videoId = rawContent.split('v=')[1].split('&')[0];
+                else if (rawContent.length === 11) videoId = rawContent; // Standard ID length
+                else videoId = rawContent; // Fallback
+            } catch (e) { videoId = rawContent; }
+        }
 
-        // Check if this lead bought anything
+        const leadName = (getLeadVal('Name') || '').toString().trim().toLowerCase();
         const sale = salesMap.get(leadName) || { cash: 0, revenue: 0 };
 
-        // Aggregate per Video
         if (!videoStats.has(videoId)) {
             videoStats.set(videoId, { id: videoId, leads: 0, cash: 0, revenue: 0 });
         }
@@ -85,10 +76,29 @@ async function getYouTubeAttribution() {
         current.revenue += sale.revenue;
     });
 
-    // Convert to Array and Sort by Cash Collected
-    return Array.from(videoStats.values())
-        .filter(v => v.id !== 'Unknown Video') // Optional: hide unknowns
-        .sort((a, b) => b.cash - a.cash);
+    // 3. ENRICH WITH YOUTUBE METADATA (Title + Thumbnail)
+    const rawStats = Array.from(videoStats.values()).filter(v => v.id !== 'Unknown Video');
+    
+    const enrichedStats = await Promise.all(rawStats.map(async (vid) => {
+        try {
+            // Using oEmbed for free, public metadata (No API Key needed)
+            const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid.id}&format=json`, { next: { revalidate: 3600 } });
+            if (res.ok) {
+                const data = await res.json();
+                return { 
+                    ...vid, 
+                    title: data.title, 
+                    thumbnail: data.thumbnail_url,
+                    author: data.author_name 
+                };
+            }
+            return { ...vid, title: `Video ${vid.id}`, thumbnail: null };
+        } catch (e) {
+            return { ...vid, title: `Video ${vid.id}`, thumbnail: null };
+        }
+    }));
+
+    return enrichedStats.sort((a, b) => b.cash - a.cash);
 
   } catch (error) {
     console.error("Attribution Error:", error);
@@ -102,8 +112,6 @@ export default async function YouTubePage() {
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-red-500/30">
       <div className="max-w-[1600px] mx-auto p-6 md:p-10">
-        
-        {/* HEADER */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
             <div>
                 <div className="flex items-center gap-2 mb-2">
@@ -117,10 +125,7 @@ export default async function YouTubePage() {
                 <a href="/" className="px-5 py-2.5 rounded-full bg-zinc-900 border border-zinc-800 text-xs font-bold uppercase tracking-widest hover:bg-zinc-800 transition-all">Back to OS</a>
             </div>
         </div>
-
-        {/* BUILDER & CHARTS */}
         <UtmBuilder videoStats={stats} />
-
       </div>
     </div>
   );

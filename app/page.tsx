@@ -184,9 +184,9 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
             <div className="flex justify-center">
               <div className="relative w-72 h-72">
                 <svg viewBox="0 0 200 200" className="transform -rotate-90">
-                  {platformData.reduce((acc, item, i) => {
+                  {platformData.map((item, i) => {
+                    const prevPercentage = platformData.slice(0, i).reduce((sum, p) => sum + p.percentage, 0);
                     const percentage = item.percentage;
-                    const prevPercentage = acc.total;
                     const startAngle = (prevPercentage / 100) * 360;
                     const endAngle = ((prevPercentage + percentage) / 100) * 360;
                     
@@ -198,7 +198,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     const largeArc = percentage > 50 ? 1 : 0;
                     const pathData = `M 100 100 L ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2} Z`;
                     
-                    acc.elements.push(
+                    return (
                       <path
                         key={i}
                         d={pathData}
@@ -207,10 +207,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                         style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.3))' }}
                       />
                     );
-                    
-                    acc.total += percentage;
-                    return acc;
-                  }, { elements: [] as JSX.Element[], total: 0 }).elements}
+                  })}
                   
                   {/* Center Circle */}
                   <circle cx="100" cy="100" r="45" fill="#050505" />

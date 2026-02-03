@@ -8,7 +8,7 @@ import UtmBuilder from './UtmBuilder';
 // --- HELPERS ---
 const cleanName = (name: string) => {
   if (!name) return '';
-  return name.toLowerCase().replace(/[^a-z0-9]/g, ''); // "Daniel B." -> "danielb"
+  return name.toLowerCase().replace(/[^a-z0-9]/g, ''); 
 };
 
 const cleanEmail = (email: string) => {
@@ -24,17 +24,13 @@ async function getYouTubeAttribution() {
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    // ---------------------------------------------------------
-    // 1. LOAD SALES DATA (Original Sheet)
-    // ---------------------------------------------------------
+    // 1. LOAD SALES DATA
     const salesDoc = new GoogleSpreadsheet(process.env.SHEET_ID!, serviceAccountAuth);
     await salesDoc.loadInfo();
     const salesSheet = salesDoc.sheetsByIndex[0];
     const salesRows = await salesSheet.getRows();
 
-    // Primary Map: Name -> Data
     const salesByName = new Map<string, { cash: number, revenue: number }>();
-    // Backup Map: Email -> Data
     const salesByEmail = new Map<string, { cash: number, revenue: number }>();
     
     salesRows.forEach(row => {
@@ -43,9 +39,8 @@ async function getYouTubeAttribution() {
             return k ? row.get(k) : '';
         };
 
-        // SALES SHEET: Row C is Merged Name
         const rawName = get('Prospect Name') || get('Name'); 
-        const rawEmail = get('Email'); // Assuming there is an Email column in Sales
+        const rawEmail = get('Email');
         
         const normalizedName = cleanName(rawName);
         const normalizedEmail = cleanEmail(rawEmail);
@@ -56,11 +51,10 @@ async function getYouTubeAttribution() {
         };
 
         const data = {
-            cash: parseMoney(get('Cash Collected')), // Row H
-            revenue: parseMoney(get('Revenue'))      // Row I
+            cash: parseMoney(get('Cash Collected')), 
+            revenue: parseMoney(get('Revenue'))
         };
 
-        // Populate Maps
         if (normalizedName) {
              const existing = salesByName.get(normalizedName) || { cash: 0, revenue: 0 };
              salesByName.set(normalizedName, { 
@@ -77,15 +71,14 @@ async function getYouTubeAttribution() {
         }
     });
 
-    // ---------------------------------------------------------
-    // 2. LOAD LEADS DATA (Lead Flow Sheet)
-    // ---------------------------------------------------------
+    // 2. LOAD LEADS DATA
     const leadsDoc = new GoogleSpreadsheet(process.env.LEAD_FLOW_SHEET_ID!, serviceAccountAuth);
     await leadsDoc.loadInfo();
     const leadsSheet = leadsDoc.sheetsByIndex[0];
     const leadsRows = await leadsSheet.getRows();
 
-    const videoStats = new Map<string, { id: string, leads: number, cash: number, revenue: number }>();
+    // Added 'qualified' to stats tracking
+    const videoStats = new Map<string, { id: string, leads: number, qualified: number, cash: number, revenue: number }>();
 
     leadsRows.forEach(row => {
         const getLeadVal = (search: string) => {
@@ -93,7 +86,6 @@ async function getYouTubeAttribution() {
              return k ? row.get(k) : '';
         };
 
-        // A. GET VIDEO ID
         const rawContent = getLeadVal('utm_content') || getLeadVal('content') || '';
         let videoId = 'Unknown Video';
         if (rawContent) {
@@ -104,41 +96,36 @@ async function getYouTubeAttribution() {
             } catch (e) { videoId = rawContent; }
         }
 
-        // B. GET IDENTITY (Name Split on Row D & E)
-        const firstName = getLeadVal('First Name') || ''; // Row D
-        const lastName = getLeadVal('Last Name') || '';   // Row E
+        const firstName = getLeadVal('First Name') || ''; 
+        const lastName = getLeadVal('Last Name') || '';   
         const leadEmail = getLeadVal('Email') || '';
+        const intent = (getLeadVal('willing to invest') || getLeadVal('right now') || '').toLowerCase();
         
-        // Construct Merged Name for Matching
+        // CHECK QUALIFICATION ($3k, $5k, $10k+)
+        const isQualified = intent.includes('3k') || intent.includes('5k') || intent.includes('10k');
+
         const fullName = `${firstName} ${lastName}`;
         const normalizedLeadName = cleanName(fullName);
         const normalizedLeadEmail = cleanEmail(leadEmail);
 
-        // C. TRY MATCHING (Name First, Then Email)
         let sale = salesByName.get(normalizedLeadName);
-        
         if (!sale && normalizedLeadEmail) {
-            // Backup Strategy: Match by Email
             sale = salesByEmail.get(normalizedLeadEmail);
         }
-
-        // Default to 0 if no match found
         const finalSale = sale || { cash: 0, revenue: 0 };
 
-        // D. AGGREGATE
         if (!videoStats.has(videoId)) {
-            videoStats.set(videoId, { id: videoId, leads: 0, cash: 0, revenue: 0 });
+            videoStats.set(videoId, { id: videoId, leads: 0, qualified: 0, cash: 0, revenue: 0 });
         }
         
         const current = videoStats.get(videoId)!;
         current.leads += 1;
+        if (isQualified) current.qualified += 1; // Increment Qualified Count
         current.cash += finalSale.cash;
         current.revenue += finalSale.revenue;
     });
 
-    // ---------------------------------------------------------
     // 3. ENRICH WITH METADATA
-    // ---------------------------------------------------------
     const rawStats = Array.from(videoStats.values()).filter(v => v.id !== 'Unknown Video');
     
     const enrichedStats = await Promise.all(rawStats.map(async (vid) => {
@@ -159,7 +146,7 @@ async function getYouTubeAttribution() {
         }
     }));
 
-    return enrichedStats.sort((a, b) => b.cash - a.cash || b.leads - a.leads);
+    return enrichedStats.sort((a, b) => b.cash - a.cash || b.qualified - a.qualified);
 
   } catch (error) {
     console.error("Attribution Error:", error);

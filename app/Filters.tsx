@@ -4,7 +4,20 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
 import CalendarPicker from './CalendarPicker';
 
-export default function Filters({ platforms, closers, setters }: { platforms: string[], closers: string[], setters: string[] }) {
+// This interface fixes the "Type Error" by telling the component what props to expect
+interface FiltersProps {
+  platforms: string[];
+  closers: string[];
+  setters: string[];
+  resetPath?: string; // This is the new optional property causing the error
+}
+
+export default function Filters({ 
+  platforms, 
+  closers, 
+  setters,
+  resetPath = '/' // Defaults to home if not specified
+}: FiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -19,7 +32,7 @@ export default function Filters({ platforms, closers, setters }: { platforms: st
       <select 
         onChange={(e) => update(param, e.target.value)}
         value={searchParams.get(param) || ''}
-        className="appearance-none bg-zinc-900/50 backdrop-blur-md border border-zinc-800 text-[11px] font-black uppercase tracking-widest text-zinc-300 pl-4 pr-10 py-3 rounded-xl focus:outline-none focus:border-cyan-500/50 transition-all cursor-pointer min-w-[160px] hover:border-zinc-700"
+        className="appearance-none bg-zinc-900/50 backdrop-blur-md border border-zinc-800 text-[11px] font-black uppercase tracking-widest text-zinc-300 pl-4 pr-10 py-3 rounded-xl focus:outline-none focus:border-cyan-500/50 transition-all cursor-pointer min-w-[140px] hover:border-zinc-700"
       >
         <option value="">Select {label}</option>
         {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -29,15 +42,15 @@ export default function Filters({ platforms, closers, setters }: { platforms: st
   );
 
   return (
-    // THE Z-[50] HERE IS CRITICAL TO STAY ABOVE THE GRAPHS
-    <div className="flex flex-wrap gap-4 items-center mb-10 relative z-[50]">
+    <div className="flex flex-wrap gap-3 items-center relative z-[50]">
       <CalendarPicker />
-      <Select label="Platform" options={platforms} param="platform" />
-      <Select label="Closer" options={closers} param="closer" />
-      <Select label="Setter" options={setters} param="setter" />
+      {platforms.length > 0 && <Select label="Platform" options={platforms} param="platform" />}
+      {closers.length > 0 && <Select label="Closer" options={closers} param="closer" />}
+      {setters.length > 0 && <Select label="Setter" options={setters} param="setter" />}
+      
       <button 
-        onClick={() => router.push('/')} 
-        className="px-4 py-3 text-[10px] font-black text-zinc-600 hover:text-zinc-400 uppercase tracking-widest transition-all"
+        onClick={() => router.push(resetPath)} 
+        className="px-4 py-3 text-[10px] font-black text-zinc-600 hover:text-white uppercase tracking-widest transition-colors hover:bg-zinc-800 rounded-xl"
       >
         Reset
       </button>

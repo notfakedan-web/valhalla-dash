@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Copy, Youtube, TrendingUp, DollarSign, BarChart3, Link as LinkIcon } from 'lucide-react';
+import { Copy, Youtube, TrendingUp, DollarSign, Link as LinkIcon, Image as ImageIcon } from 'lucide-react';
 
 export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
   const [baseUrl, setBaseUrl] = useState('');
@@ -11,15 +11,12 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
   const generateLink = () => {
     if (!baseUrl || !videoUrl) return;
     
-    // Extract Video ID to use as 'utm_content'
     let videoId = '';
     try {
         if (videoUrl.includes('youtu.be/')) videoId = videoUrl.split('youtu.be/')[1].split('?')[0];
         else if (videoUrl.includes('v=')) videoId = videoUrl.split('v=')[1].split('&')[0];
     } catch (e) { videoId = 'unknown_video'; }
 
-    // Construct the tracking URL
-    // We use query parameters (?) so Typeform hidden fields can capture them
     const separator = baseUrl.includes('?') ? '&' : '?';
     const finalUrl = `${baseUrl}${separator}utm_source=youtube&utm_medium=social&utm_content=${videoId}&utm_campaign=organic`;
     
@@ -28,13 +25,13 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generatedLink);
-    // Simple visual feedback could go here
+    alert("Link Copied!");
   };
 
   return (
     <div className="space-y-8">
       
-      {/* 1. THE LINK GENERATOR */}
+      {/* 1. BUILDER */}
       <div className="bg-[#0c0c0c] border border-zinc-800/50 p-8 rounded-[32px] shadow-inner relative overflow-hidden group">
         <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
             <Youtube size={140} />
@@ -45,7 +42,7 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="space-y-2">
-                    <label className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Typeform / Landing Page URL</label>
+                    <label className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">Typeform URL</label>
                     <input 
                         type="text" 
                         placeholder="https://form.typeform.com/to/xyz" 
@@ -68,7 +65,7 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
 
             <button 
                 onClick={generateLink}
-                className="w-full bg-white text-black font-black uppercase tracking-widest py-4 rounded-xl hover:bg-cyan-400 hover:scale-[1.01] transition-all mb-6 shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+                className="w-full bg-white text-black font-black uppercase tracking-widest py-4 rounded-xl hover:bg-cyan-400 hover:scale-[1.01] transition-all mb-6"
             >
                 Generate Tracking Link
             </button>
@@ -87,7 +84,7 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
         </div>
       </div>
 
-      {/* 2. ROI ANALYTICS GRID */}
+      {/* 2. ROI GRID */}
       <div className="flex items-center justify-between mt-12 mb-6">
         <h3 className="text-xl font-black uppercase italic text-white">Video ROI <span className="text-red-500">Intelligence</span></h3>
         <div className="flex items-center gap-2">
@@ -98,49 +95,51 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {videoStats.map((vid, i) => (
-              <div key={i} className="bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-3xl hover:border-red-500/30 transition-all group relative overflow-hidden">
+              <div key={i} className="bg-zinc-900/40 border border-zinc-800/50 rounded-3xl hover:border-red-500/30 transition-all group relative overflow-hidden flex flex-col">
                   
-                  {/* Rank Badge */}
-                  <div className="absolute top-0 right-0 bg-zinc-800 px-4 py-2 rounded-bl-2xl">
-                      <span className="text-[10px] font-black text-white">#{i + 1}</span>
-                  </div>
-
-                  <div className="flex justify-between items-start mb-6">
-                      <div className="p-3 bg-red-500/10 rounded-xl text-red-500 group-hover:bg-red-500 group-hover:text-white transition-colors">
-                          <Youtube size={20} />
+                  {/* THUMBNAIL AREA */}
+                  <div className="h-40 w-full relative bg-zinc-800/50 overflow-hidden">
+                      {vid.thumbnail ? (
+                          <img src={vid.thumbnail} alt={vid.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      ) : (
+                          <div className="w-full h-full flex items-center justify-center text-zinc-700"><ImageIcon size={40} /></div>
+                      )}
+                      <div className="absolute top-0 right-0 bg-black/80 px-3 py-1 rounded-bl-xl border-l border-b border-zinc-800 backdrop-blur-sm">
+                          <span className="text-[10px] font-black text-white">#{i + 1}</span>
                       </div>
                   </div>
-                  
-                  <div className="mb-6">
-                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Video ID</p>
-                    <h4 className="text-xs font-bold text-white font-mono">{vid.id}</h4>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 border-t border-zinc-800/50 pt-4">
-                      <div>
-                          <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Total Revenue</p>
-                          <div className="flex items-center gap-2">
-                              <TrendingUp size={12} className="text-cyan-500" />
-                              <span className="text-lg font-black text-white">${(vid.revenue / 1000).toFixed(1)}k</span>
+
+                  {/* CONTENT */}
+                  <div className="p-6 flex-1 flex flex-col">
+                      <h4 className="text-sm font-bold text-white mb-4 line-clamp-2 leading-tight min-h-[40px]" title={vid.title}>
+                          {vid.title}
+                      </h4>
+                      
+                      <div className="grid grid-cols-2 gap-4 border-t border-zinc-800/50 pt-4 mt-auto">
+                          <div>
+                              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Pipeline</p>
+                              <div className="flex items-center gap-2">
+                                  <TrendingUp size={12} className="text-cyan-500" />
+                                  <span className="text-lg font-black text-white">${(vid.revenue / 1000).toFixed(1)}k</span>
+                              </div>
+                          </div>
+                          <div>
+                              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Cash</p>
+                              <div className="flex items-center gap-2">
+                                  <DollarSign size={12} className="text-green-500" />
+                                  <span className="text-lg font-black text-white">${(vid.cash / 1000).toFixed(1)}k</span>
+                              </div>
                           </div>
                       </div>
-                      <div>
-                          <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Cash Collected</p>
-                          <div className="flex items-center gap-2">
-                              <DollarSign size={12} className="text-green-500" />
-                              <span className="text-lg font-black text-white">${(vid.cash / 1000).toFixed(1)}k</span>
-                          </div>
+
+                      <div className="mt-4 pt-4 border-t border-zinc-800/50 flex justify-between items-center">
+                           <span className="text-[9px] font-bold text-zinc-600 uppercase">Leads Generated</span>
+                           <span className="text-xs font-black text-white">{vid.leads}</span>
                       </div>
-                  </div>
 
-                  <div className="mt-4 pt-4 border-t border-zinc-800/50 flex justify-between items-center">
-                       <span className="text-[9px] font-bold text-zinc-600 uppercase">Leads Generated</span>
-                       <span className="text-xs font-black text-white">{vid.leads}</span>
-                  </div>
-
-                  {/* Performance Bar */}
-                  <div className="mt-4 w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-red-600 to-red-400" style={{ width: `${(vid.cash / Math.max(...videoStats.map((v:any) => v.cash), 1)) * 100}%` }} />
+                      <div className="mt-4 w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-red-600 to-red-400" style={{ width: `${(vid.cash / Math.max(...videoStats.map((v:any) => v.cash), 1)) * 100}%` }} />
+                      </div>
                   </div>
               </div>
           ))}

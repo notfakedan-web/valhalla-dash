@@ -5,10 +5,6 @@ import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
 import Filters from '../Filters'; 
 
-// REUSE THE FILTERS COMPONENT but we might need to adjust what props it takes 
-// For now, I'll pass empty lists for closer/setter if they aren't relevant to leads, 
-// or you can populate them if your lead sheet has that data.
-
 async function getLeadsData() {
   try {
     const serviceAccountAuth = new JWT({
@@ -17,164 +13,139 @@ async function getLeadsData() {
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    const doc = new GoogleSpreadsheet(process.env.LEAD_FLOW_SHEET_ID!, serviceAccountAuth);
+    const sheetId = process.env.LEAD_FLOW_SHEET_ID;
+    if (!sheetId) throw new Error("LEAD_FLOW_SHEET_ID is missing");
+
+    const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
+    await sheet.loadHeaderRow();
     const rows = await sheet.getRows();
 
     return rows.map(row => {
-      const get = (s: string) => {
-        const k = sheet.headerValues.find(h => h.toLowerCase().includes(s.toLowerCase()));
-        return k ? row.get(k) : '';
+      const getVal = (search: string) => {
+          const foundKey = sheet.headerValues.find(h => h.trim().toLowerCase().includes(search.toLowerCase()));
+          return foundKey ? row.get(foundKey) : '';
       };
+      
+      const rawDate = getVal('submitted at') || getVal('date') || '';
+      let parsedDate = new Date(rawDate);
+      if (isNaN(parsedDate.getTime()) && rawDate.includes('/')) {
+        const parts = rawDate.split(' ')[0].split('/');
+        if (parts.length === 3) {
+            parsedDate = new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
+        }
+      }
+
       return {
-        timestamp: get('Timestamp') || '',
-        name: `${get('First Name')} ${get('Last Name')}`,
-        email: get('Email') || '',
-        phone: get('Phone') || '',
-        intent: get('Willing to invest') || 'N/A',
-        source: get('utm_source') || 'Direct',
-        content: get('utm_content') || '',
-        platform: get('utm_source') || 'Other', // Mapping source to platform for the filter
+        source: getVal('SOURCE') || 'Other',
+        funnel: getVal('FUNNEL') || 'N/A',
+        cashOnHand: getVal('willing to invest') || getVal('RIGHT NOW') || 'Unknown',
+        date: rawDate,
+        isoDate: !isNaN(parsedDate.getTime()) ? parsedDate : null,
+        name: getVal('NAME') || 'N/A',
+        email: getVal('EMAIL') || 'N/A',
       };
     });
-  } catch (error) { return []; }
+  } catch (error) { console.error(error); return []; }
 }
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<any> }) {
   const params = await searchParams;
   const allLeads = await getLeadsData();
 
-  // SORT BY NEWEST FIRST
-  allLeads.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-  // DATE RANGE LOGIC
-  const start = params.start ? new Date(params.start) : null;
-  const end = params.end ? new Date(params.end) : null;
-  if (end) end.setHours(23, 59, 59, 999);
-
-  const filteredLeads = allLeads.filter(l => {
-     if (!l.timestamp) return false;
-     const tDate = new Date(l.timestamp);
-     if (start && tDate < start) return false;
-     if (end && tDate > end) return false;
-     if (params.platform && l.source !== params.platform) return false;
-     return true;
+  // 1. FILTER LOGIC
+  const filtered = allLeads.filter(d => {
+    if (params.start && d.isoDate && d.isoDate < new Date(params.start)) return false;
+    if (params.end && d.isoDate && d.isoDate > new Date(params.end)) return false;
+    if (params.platform && d.source !== params.platform) return false;
+    return true;
   });
 
-  // METRICS
-  const totalLeads = filteredLeads.length;
-  // Simple check for "High Ticket" intent
-  const qualifiedLeads = filteredLeads.filter(l => l.intent.includes('10k') || l.intent.includes('5k')).length;
+  // 2. SORT LOGIC (Newest First)
+  filtered.sort((a, b) => {
+      if (!a.isoDate) return 1;
+      if (!b.isoDate) return -1;
+      return b.isoDate.getTime() - a.isoDate.getTime();
+  });
 
-  // CHART DATA: Growth Velocity (Leads per day)
-  const dayMap = new Map<string, number>();
-  // Auto-fill range logic (simplified for leads)
-  if (filteredLeads.length > 0) {
-      const times = filteredLeads.map(d => new Date(d.timestamp).getTime());
-      const min = new Date(Math.min(...times));
-      const max = new Date(Math.max(...times));
-      for (let d = new Date(min); d <= max; d.setDate(d.getDate() + 1)) {
-          dayMap.set(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 0);
+  // 3. CHART DATA PREP
+  const dailyCounts: Record<string, number> = {};
+  filtered.forEach(d => {
+      const label = d.isoDate ? d.isoDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown';
+      if (label !== 'Unknown') {
+        dailyCounts[label] = (dailyCounts[label] || 0) + 1;
       }
-  }
-  
-  filteredLeads.forEach(l => {
-      const day = new Date(l.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      if (dayMap.has(day)) dayMap.set(day, (dayMap.get(day) || 0) + 1);
-      else dayMap.set(day, 1); // Fallback
-  });
-  
-  // Sort chart by date
-  const trend = Array.from(dayMap.entries()).sort((a,b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
-  const maxLeads = Math.max(...trend.map(t => t[1]), 5);
-
-  // INVESTMENT PROFILES
-  const intents: Record<string, number> = {};
-  filteredLeads.forEach(l => {
-      const i = l.intent || 'Unknown';
-      intents[i] = (intents[i] || 0) + 1;
   });
 
-  const platforms = Array.from(new Set(allLeads.map(l => l.source))).filter(Boolean);
+  const timeTrend = Object.entries(dailyCounts).sort((a, b) => {
+    return new Date(a[0]).getTime() - new Date(b[0]).getTime();
+  });
+  
+  const maxDayLeads = Math.max(...timeTrend.map(t => t[1]), 1);
+
+  const cashMap: Record<string, number> = {};
+  filtered.forEach(d => {
+      const bracket = d.cashOnHand || 'Unknown';
+      cashMap[bracket] = (cashMap[bracket] || 0) + 1;
+  });
+  const cashBrackets = Object.entries(cashMap).sort((a, b) => b[1] - a[1]);
 
   return (
-    <div className="min-h-screen p-6 md:p-10">
-      <div className="max-w-[1600px] mx-auto">
-
-        {/* HEADER & FILTERS */}
+    <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-cyan-500/30">
+      <div className="max-w-[1600px] mx-auto p-6 md:p-10">
+        
+        {/* HEADER & FILTERS (Moved to Top) */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-12 relative z-[100]">
             <div>
                 <div className="flex items-center gap-2 mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Analytics</span>
                     <div className="w-1 h-1 rounded-full bg-zinc-700" />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-500">Leads Intelligence</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-400">Leads Intelligence</span>
                 </div>
                 <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Lead Flow <span className="text-cyan-500">Vault</span></h1>
             </div>
             
-            <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-2 pl-6 rounded-2xl flex flex-wrap items-center gap-4">
-                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mr-2">Global Filters:</span>
-                {/* Reusing existing filters, passing empty arrays for irrelevant fields */}
-                <Filters platforms={platforms} closers={[]} setters={[]} />
+            <div className="flex items-center gap-4">
+                <a href="/" className="px-5 py-2.5 rounded-full bg-zinc-900 border border-zinc-800 text-xs font-bold uppercase tracking-widest hover:bg-zinc-800 transition-all text-center">Back to OS</a>
+                <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-2 pl-6 rounded-2xl flex flex-wrap items-center gap-4">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
+                    <Filters platforms={Array.from(new Set(allLeads.map(d => d.source)))} closers={[]} setters={[]} />
+                </div>
             </div>
         </div>
 
+        {/* LAYOUT GRID */}
         <div className="space-y-6 relative z-10">
             
-            {/* TOP KPI ROW */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="relative group overflow-hidden bg-gradient-to-br from-cyan-600 to-blue-700 p-8 rounded-3xl shadow-2xl shadow-cyan-900/20">
-                    <p className="text-xs font-black text-white/60 uppercase mb-1 tracking-widest">Total Acquisitions (Leads)</p>
-                    <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">{totalLeads}</h2>
-                    <div className="mt-2 flex items-center gap-2">
+            {/* KPI ROW */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Total Leads Card */}
+                <div className="col-span-1 md:col-span-1 relative group overflow-hidden bg-gradient-to-br from-cyan-600 to-blue-700 p-8 rounded-3xl shadow-2xl shadow-cyan-900/20">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                        <svg width="80" height="80" viewBox="0 0 24 24" fill="white"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                    </div>
+                    <p className="text-xs font-black text-white/60 uppercase mb-1 tracking-widest">Total Acquisitions</p>
+                    <h2 className="text-6xl font-black text-white tracking-tighter tabular-nums">{filtered.length}</h2>
+                    <div className="mt-4 flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                        <span className="text-[10px] font-bold text-white/80 uppercase tracking-widest">Inbound Pipeline</span>
-                    </div>
-                </div>
-                <div className="bg-zinc-900/40 border border-zinc-800/50 p-8 rounded-3xl">
-                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-1 tracking-widest">Qualified (High Ticket)</p>
-                    <h3 className="text-5xl font-black text-white tracking-tighter italic tabular-nums">{qualifiedLeads}</h3>
-                </div>
-            </div>
-
-            {/* CHARTS ROW */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* LINE CHART (2/3 width) */}
-                <div className="lg:col-span-2 bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8 shadow-inner relative overflow-hidden">
-                    <div className="flex items-center justify-between mb-8">
-                        <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Growth Velocity</h3>
-                        <span className="text-[10px] font-bold text-zinc-600 italic">Daily Volume</span>
-                    </div>
-                    
-                    {/* Simplified Line Chart Visualization using Bars for robustness */}
-                    <div className="flex h-[200px] items-end gap-2">
-                        {trend.map(([date, count], i) => (
-                            <div key={i} className="flex-1 flex flex-col items-center group relative">
-                                <div className="w-full bg-cyan-500/20 group-hover:bg-cyan-500 rounded-t-sm transition-all relative" style={{ height: `${(count/maxLeads)*100}%` }}>
-                                     <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-white text-black text-[10px] font-bold px-2 py-1 rounded">
-                                        {count}
-                                     </div>
-                                </div>
-                                <span className="text-[8px] text-zinc-600 uppercase mt-2 hidden group-hover:block absolute bottom-[-20px] whitespace-nowrap">{date}</span>
-                            </div>
-                        ))}
+                        <span className="text-[10px] font-bold text-white/80 uppercase">Inbound Pipeline</span>
                     </div>
                 </div>
 
-                {/* INVESTMENT PROFILES (1/3 width) */}
-                <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
+                {/* Investment Profiles (Expanded) */}
+                <div className="col-span-1 md:col-span-2 bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
                     <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Investment Profiles</h3>
-                    <div className="space-y-4">
-                        {Object.entries(intents).map(([intent, count]) => (
-                            <div key={intent} className="group">
-                                <div className="flex justify-between text-[10px] font-bold uppercase text-zinc-500 mb-1">
-                                    <span>{intent}</span>
-                                    <span className="text-white">{count} Leads</span>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        {cashBrackets.map(([bracket, count], i) => (
+                            <div key={i} className="bg-zinc-900/50 border border-zinc-800/50 p-4 rounded-xl hover:border-cyan-500/50 transition-all">
+                                <p className="text-[9px] font-black text-zinc-500 uppercase mb-2 truncate" title={bracket}>{bracket}</p>
+                                <div className="flex items-end gap-2">
+                                    <span className="text-2xl font-black text-white">{count}</span>
+                                    <span className="text-[9px] font-bold text-cyan-500 mb-1 uppercase">leads</span>
                                 </div>
-                                <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
-                                    <div className="h-full bg-cyan-500 group-hover:bg-cyan-400 transition-all" style={{ width: `${(count/totalLeads)*100}%` }} />
+                                <div className="mt-2 w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
+                                    <div className="h-full bg-cyan-500" style={{ width: `${(count / filtered.length) * 100}%` }} />
                                 </div>
                             </div>
                         ))}
@@ -182,35 +153,90 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                 </div>
             </div>
 
-            {/* DATA TABLE (Bottom) */}
-            <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[40px] overflow-hidden">
-                <div className="p-8 border-b border-zinc-800/50 bg-zinc-900/40 flex justify-between items-center">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400">Acquisition Log</h3>
-                    <span className="text-[10px] font-bold text-zinc-600 italic">Showing {filteredLeads.length} Records</span>
+            {/* CHART ROW */}
+            <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8 shadow-inner relative overflow-hidden">
+                <div className="flex items-center justify-between mb-10">
+                    <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Growth Velocity</h3>
+                    <span className="text-[10px] font-bold text-zinc-600 italic">Daily Submission Volume</span>
+                </div>
+                <div className="h-[250px] w-full relative">
+                    {timeTrend.length > 1 ? (
+                      <>
+                        <svg className="absolute inset-0 w-full h-full overflow-visible" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+                                    <stop offset="0%" stopColor="#22d3ee" />
+                                    <stop offset="100%" stopColor="#818cf8" />
+                                </linearGradient>
+                            </defs>
+                            <polyline
+                                fill="none"
+                                stroke="url(#lineGrad)"
+                                strokeWidth="4"
+                                strokeLinecap="round"
+                                points={timeTrend.map(([_, count], i) => {
+                                    const svgX = (i / (timeTrend.length - 1)) * 1000;
+                                    const svgY = 250 - (count / maxDayLeads) * 200;
+                                    return `${svgX},${svgY}`;
+                                }).join(' ')}
+                                viewBox="0 0 1000 250"
+                                style={{ vectorEffect: 'non-scaling-stroke' }}
+                            />
+                        </svg>
+                        <div className="absolute inset-0 flex border-b border-zinc-800/50">
+                            {timeTrend.map(([date, count], i) => (
+                                <div key={i} className="flex-1 flex flex-col justify-end group items-center relative h-full">
+                                    <div className="absolute inset-0 bg-cyan-500/0 group-hover:bg-cyan-500/5 transition-colors" />
+                                    <div 
+                                        className="w-3 h-3 bg-white rounded-full z-10 border-4 border-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.8)] transition-all group-hover:scale-125" 
+                                        style={{ marginBottom: `${(count / maxDayLeads) * 200 - 6}px` }} 
+                                    />
+                                    <div className="absolute -bottom-10 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg z-20 whitespace-nowrap">
+                                        {date}: {count} Leads
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                      </>
+                    ) : (
+                        <div className="h-full flex items-center justify-center text-zinc-600 text-xs font-bold uppercase tracking-widest">
+                            Not enough data to graph
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* DATA TABLE */}
+            <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[40px] overflow-hidden backdrop-blur-xl shadow-2xl">
+                <div className="p-8 border-b border-zinc-800/50 flex justify-between items-center bg-zinc-900/40">
+                    <h3 className="text-sm font-black uppercase tracking-widest text-white">Acquisition Log</h3>
+                    <span className="text-[10px] font-bold text-zinc-500 italic">Showing {filtered.length} Records</span>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead className="bg-zinc-900/60 text-zinc-500 text-[10px] font-black uppercase tracking-widest border-b border-zinc-800/50">
                             <tr>
+                                <th className="px-8 py-5">Origin</th>
+                                <th className="px-8 py-5">Investment Intent</th>
                                 <th className="px-8 py-5">Timestamp</th>
                                 <th className="px-8 py-5">Identity</th>
-                                <th className="px-8 py-5">Investment Intent</th>
-                                <th className="px-8 py-5">Origin</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-800/30">
-                            {filteredLeads.map((lead, i) => (
-                                <tr key={i} className="hover:bg-cyan-500/[0.02] transition-colors group">
-                                    <td className="px-8 py-5 text-[10px] font-bold text-zinc-600 uppercase font-mono">{new Date(lead.timestamp).toLocaleString()}</td>
-                                    <td className="px-8 py-5">
-                                        <div className="text-sm font-black text-white uppercase tracking-tight">{lead.name}</div>
-                                        <div className="text-[10px] text-zinc-500">{lead.email}</div>
+                            {filtered.slice(0, 50).map((lead, i) => (
+                                <tr key={i} className="hover:bg-cyan-500/[0.03] transition-colors group">
+                                    <td className="px-8 py-6">
+                                        <span className="bg-zinc-800 px-3 py-1 rounded-full text-[10px] font-black text-zinc-400 group-hover:text-cyan-400 transition-colors uppercase">{lead.source}</span>
                                     </td>
-                                    <td className="px-8 py-5 text-sm font-black text-cyan-500 italic">{lead.intent}</td>
-                                    <td className="px-8 py-5">
-                                        <span className="bg-zinc-800 text-zinc-400 text-[9px] font-bold uppercase px-2 py-1 rounded">
-                                            {lead.source}
-                                        </span>
+                                    <td className="px-8 py-6 text-sm font-bold text-white max-w-[280px] truncate uppercase tracking-tighter">{lead.cashOnHand}</td>
+                                    <td className="px-8 py-6 text-[11px] text-zinc-500 font-mono italic">
+                                        {lead.isoDate ? lead.isoDate.toLocaleString() : lead.date}
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-black text-white uppercase tracking-tight">{lead.name}</span>
+                                            <span className="text-[10px] text-zinc-500 font-medium">{lead.email}</span>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

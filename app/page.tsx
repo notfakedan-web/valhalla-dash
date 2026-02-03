@@ -47,14 +47,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const end = params.end ? new Date(params.end) : null;
   if (end) end.setHours(23, 59, 59, 999);
 
-  const accountingData = allRawData.filter(d => {
-    if (!d.timestamp) return false;
-    const tDate = new Date(d.timestamp);
-    if (start && tDate < start) return false;
-    if (end && tDate > end) return false;
-    return true;
-  });
-
+  // Filter Logic
   const performanceData = allRawData.filter(d => {
     if (!d.date) return false;
     const dDate = new Date(d.date);
@@ -66,224 +59,194 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
     return true;
   });
 
-  const totalCash = accountingData.reduce((acc, curr) => acc + curr.cash, 0);
+  const accountingData = allRawData.filter(d => {
+    if (!d.timestamp) return false;
+    const tDate = new Date(d.timestamp);
+    if (start && tDate < start) return false;
+    if (end && tDate > end) return false;
+    return true;
+  });
 
+  // KPI Calculations
+  const totalCash = accountingData.reduce((acc, curr) => acc + curr.cash, 0);
   const appointments = performanceData.filter(d => {
     const out = d.outcome.toLowerCase();
     const prospect = d.prospect.toLowerCase();
-    const isRecurring = out.includes('mrr') || out.includes('downsell');
-    const isTest = prospect.includes('test');
-    return !isRecurring && !isTest;
+    return !out.includes('mrr') && !out.includes('downsell') && !prospect.includes('test');
   });
 
   const totalRev = appointments.reduce((acc, curr) => acc + curr.revenue, 0);
-  const newSaleCash = appointments.reduce((acc, curr) => acc + curr.cash, 0);
-
-  const callsDue = appointments.length;
-  const callsTaken = appointments.filter(d => 
-    !['no show', 'rescheduled', 'cancelled'].some(x => d.outcome.toLowerCase().includes(x))
-  ).length;
-
-  const callsClosed = appointments.filter(d => 
-    ['closed', 'deposit collected', 'paid', 'full pay'].some(x => d.outcome.toLowerCase().includes(x))
-  ).length;
-
-  const showRate = callsDue > 0 ? (callsTaken / callsDue) * 100 : 0;
+  const callsTaken = appointments.filter(d => !['no show', 'rescheduled', 'cancelled'].some(x => d.outcome.toLowerCase().includes(x))).length;
+  const callsClosed = appointments.filter(d => ['closed', 'deposit collected', 'paid', 'full pay'].some(x => d.outcome.toLowerCase().includes(x))).length;
+  
+  const showRate = appointments.length > 0 ? (callsTaken / appointments.length) * 100 : 0;
   const closeRate = callsTaken > 0 ? (callsClosed / callsTaken) * 100 : 0;
-  const avgCashCall = callsTaken > 0 ? newSaleCash / callsTaken : 0;
-  const avgCashClose = callsClosed > 0 ? newSaleCash / callsClosed : 0;
 
+  // Chart Data
   const dailyMap: Record<string, number> = {};
   accountingData.forEach(d => {
     const day = new Date(d.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     dailyMap[day] = (dailyMap[day] || 0) + d.cash;
   });
   const trend = Object.entries(dailyMap).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+  const maxCash = Math.max(...trend.map(([_, c]) => c), 1);
 
   const platforms = Array.from(new Set(allRawData.map(d => d.platform))).filter(Boolean) as string[];
   const closers = Array.from(new Set(allRawData.map(d => d.closer))).filter(Boolean) as string[];
   const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
 
-  const platformBreakdown: Record<string, number> = {};
-  performanceData.forEach(d => {
-    const platform = d.platform || 'Other';
-    platformBreakdown[platform] = (platformBreakdown[platform] || 0) + 1;
-  });
-  
-  const platformData = Object.entries(platformBreakdown)
-    .map(([name, count]) => ({
-      name,
-      count,
-      percentage: performanceData.length > 0 ? (count / performanceData.length) * 100 : 0
-    }))
-    .sort((a, b) => b.count - a.count);
-
-  const colors = ['#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7'];
-
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      <div className="max-w-[1600px] mx-auto px-8 py-10">
-        {/* Header */}
-        <div className="mb-12 pb-6 border-b border-zinc-800">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold tracking-tight mb-1">
-                VALHALLA<span className="text-green-500">OS</span>
-              </h1>
-              <p className="text-sm text-zinc-500 font-medium">Sales Performance Dashboard</p>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-lg">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <p className="text-xs font-bold text-green-500 uppercase tracking-wide">Live</p>
-            </div>
-          </div>
-        </div>
+    <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-green-500/30">
+      <div className="max-w-[1600px] mx-auto p-6 md:p-10">
         
-        <Filters platforms={platforms} closers={closers} setters={setters} />
-
-        {/* Main Cash & Revenue Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-xl p-8 shadow-2xl">
-            <p className="text-xs font-bold text-green-100 uppercase tracking-widest mb-2">Cash Collected</p>
-            <h2 className="text-6xl font-bold tabular-nums text-white">${totalCash.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
-          </div>
-          
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 shadow-xl">
-            <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Total Revenue</p>
-            <h2 className="text-6xl font-bold tabular-nums text-white">${totalRev.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h2>
-          </div>
-        </div>
-
-        {/* Key Metrics */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-          <MetricCard label="Show Rate" value={`${showRate.toFixed(1)}%`} />
-          <MetricCard label="Close Rate" value={`${closeRate.toFixed(1)}%`} />
-          <MetricCard label="Calls Due" value={callsDue} />
-          <MetricCard label="Calls Taken" value={callsTaken} />
-          <MetricCard label="Calls Closed" value={callsClosed} highlight />
-        </div>
-
-        {/* Average Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-green-500/40 transition-all">
-            <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">Avg. Cash / Call</p>
-            <h2 className="text-4xl font-bold text-green-500 tabular-nums">${avgCashCall.toFixed(2)}</h2>
-          </div>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-green-500/40 transition-all">
-            <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">Avg. Cash / Close</p>
-            <h2 className="text-4xl font-bold text-green-500 tabular-nums">${avgCashClose.toFixed(2)}</h2>
-          </div>
-        </div>
-
-        {/* Platform Breakdown */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-10 mb-8">
-          <h3 className="text-lg font-bold uppercase tracking-wide mb-8">Traffic Sources</h3>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            {/* Pie Chart */}
-            <div className="flex justify-center">
-              <div className="relative w-80 h-80">
-                <svg viewBox="0 0 200 200" className="transform -rotate-90">
-                  {platformData.map((item, i) => {
-                    const prevPercentage = platformData.slice(0, i).reduce((sum, p) => sum + p.percentage, 0);
-                    const percentage = item.percentage;
-                    const startAngle = (prevPercentage / 100) * 360;
-                    const endAngle = ((prevPercentage + percentage) / 100) * 360;
-                    
-                    const x1 = 100 + 85 * Math.cos((startAngle * Math.PI) / 180);
-                    const y1 = 100 + 85 * Math.sin((startAngle * Math.PI) / 180);
-                    const x2 = 100 + 85 * Math.cos((endAngle * Math.PI) / 180);
-                    const y2 = 100 + 85 * Math.sin((endAngle * Math.PI) / 180);
-                    
-                    const largeArc = percentage > 50 ? 1 : 0;
-                    const pathData = `M 100 100 L ${x1} ${y1} A 85 85 0 ${largeArc} 1 ${x2} ${y2} Z`;
-                    
-                    return (
-                      <path
-                        key={i}
-                        d={pathData}
-                        fill={colors[i % colors.length]}
-                        className="hover:opacity-80 transition-opacity"
-                        stroke="#0a0a0a"
-                        strokeWidth="2"
-                      />
-                    );
-                  })}
-                  
-                  <circle cx="100" cy="100" r="50" fill="#0a0a0a" stroke="#18181b" strokeWidth="2" />
-                </svg>
-                
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="text-xs font-bold text-zinc-600 uppercase">Total</p>
-                  <p className="text-5xl font-bold text-white">{performanceData.length}</p>
-                  <p className="text-xs font-medium text-zinc-600">CALLS</p>
+        {/* TOP BAR */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+            <div>
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Global Command</span>
+                    <div className="w-1 h-1 rounded-full bg-zinc-700" />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-green-400">Sales Performance</span>
                 </div>
-              </div>
+                <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Valhalla <span className="text-green-500">OS</span></h1>
             </div>
+            <div className="flex items-center gap-4">
+                <div className="px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-[10px] font-black text-green-500 uppercase tracking-tighter">Terminal Live</span>
+                </div>
+            </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
-            {/* Legend */}
-            <div className="space-y-3">
-              {platformData.map((item, i) => (
-                <div key={i} className="flex items-center justify-between gap-4 bg-zinc-800/50 rounded-lg p-4 hover:bg-zinc-800 transition-all">
-                  <div className="flex items-center gap-4">
-                    <div 
-                      className="w-4 h-4 rounded flex-shrink-0" 
-                      style={{ backgroundColor: colors[i % colors.length] }}
-                    />
-                    <span className="text-base font-medium text-white">{item.name}</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-bold text-white">{item.count}</p>
-                    <p className="text-xs text-zinc-500">{item.percentage.toFixed(1)}%</p>
-                  </div>
+            {/* LEFT SIDEBAR: FILTERS & PRIMARY KPI */}
+            <div className="lg:col-span-3 space-y-6">
+                <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-6 rounded-3xl">
+                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-6 tracking-widest">Revenue Filter</p>
+                    <Filters platforms={platforms} closers={closers} setters={setters} />
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
 
-        {/* Cash Flow Chart */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-10">
-          <h3 className="text-lg font-bold uppercase tracking-wide mb-10">Cash Flow</h3>
-          
-          <div className="h-[350px] flex items-end gap-2">
-            {trend.map(([date, cash], i) => {
-              const maxCash = Math.max(...trend.map(([_, c]) => c));
-              const heightPercentage = maxCash > 0 ? (cash / maxCash) * 100 : 0;
-              const barHeight = Math.max(12, (heightPercentage / 100) * 290);
-              
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-4 group">
-                  <div className="relative w-full">
-                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold text-green-400 whitespace-nowrap bg-zinc-800 px-3 py-1.5 rounded-lg">
-                      ${(cash/1000).toFixed(1)}K
+                <div className="relative group overflow-hidden bg-gradient-to-br from-green-600 to-emerald-800 p-8 rounded-3xl shadow-2xl shadow-green-900/20">
+                    <p className="text-xs font-black text-white/60 uppercase mb-1 tracking-widest">Net Cash Collected</p>
+                    <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">
+                        ${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                    </h2>
+                    <div className="mt-4 flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-white/80 uppercase">Portfolio Liquidity</span>
                     </div>
-                    <div 
-                      className="w-full bg-green-500 rounded-t hover:bg-green-400 transition-colors" 
-                      style={{ height: `${barHeight}px` }} 
-                    />
-                  </div>
-                  <span className="text-[10px] font-medium text-zinc-600 uppercase">{date}</span>
                 </div>
-              );
-            })}
-          </div>
-        </div>
 
-        {/* Footer */}
-        <div className="mt-10 pt-8 border-t border-zinc-800 text-center">
-          <p className="text-xs text-zinc-600">ValhallaOS Sales Intelligence v1.0</p>
+                <div className="bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-3xl">
+                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-1 tracking-widest">Total Revenue</p>
+                    <h3 className="text-3xl font-black text-white tracking-tighter italic">
+                        ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                    </h3>
+                </div>
+            </div>
+
+            {/* RIGHT MAIN CONTENT */}
+            <div className="lg:col-span-9 space-y-6">
+                
+                {/* METRICS ROW */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-white" />
+                    <StatBox label="Close Rate" value={`${closeRate.toFixed(1)}%`} color="text-white" />
+                    <StatBox label="Appointments" value={appointments.length} color="text-white" />
+                    <StatBox label="Acquisitions" value={callsClosed} color="text-green-500" />
+                </div>
+
+                {/* CASH FLOW VELOCITY (LINE CHART STYLE) */}
+                <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8 shadow-inner">
+                    <div className="flex items-center justify-between mb-10">
+                        <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Velocity</h3>
+                        <span className="text-[10px] font-bold text-zinc-600 italic">Historical Settlement</span>
+                    </div>
+                    <div className="h-[280px] w-full relative border-l border-b border-zinc-800/30">
+                        <svg className="absolute inset-0 w-full h-full overflow-visible" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+                                    <stop offset="0%" stopColor="#10b981" />
+                                    <stop offset="100%" stopColor="#34d399" />
+                                </linearGradient>
+                            </defs>
+                            <polyline
+                                fill="none"
+                                stroke="url(#lineGrad)"
+                                strokeWidth="4"
+                                strokeLinecap="round"
+                                points={trend.map(([_, cash], i) => {
+                                    const x = (i / (trend.length - 1)) * 1000;
+                                    const y = 280 - (cash / maxCash) * 220;
+                                    return `${x},${y}`;
+                                }).join(' ')}
+                                viewBox="0 0 1000 280"
+                                style={{ vectorEffect: 'non-scaling-stroke' }}
+                            />
+                        </svg>
+                        <div className="absolute inset-0 flex">
+                            {trend.map(([date, cash], i) => (
+                                <div key={i} className="flex-1 flex flex-col justify-end group items-center relative h-full">
+                                    <div className="absolute inset-0 group-hover:bg-green-500/5 transition-colors" />
+                                    <div 
+                                        className="w-3 h-3 bg-white rounded-full z-10 border-4 border-green-500 shadow-[0_0_15px_rgba(16,185,129,0.8)] transition-all group-hover:scale-125" 
+                                        style={{ marginBottom: `${(cash / maxCash) * 220 - 6}px` }} 
+                                    />
+                                    <div className="absolute opacity-0 group-hover:opacity-100 bottom-full mb-10 bg-white text-black text-[9px] font-black px-2 py-1 rounded whitespace-nowrap z-20">
+                                        ${(cash/1000).toFixed(1)}K
+                                    </div>
+                                    <span className="absolute -bottom-8 text-[9px] font-black text-zinc-600 uppercase transition-colors group-hover:text-green-400">{date}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* BOTTOM PERFORMANCE GRID */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
+                        <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Efficiency Analytics</h3>
+                        <div className="space-y-4">
+                            <EfficiencyRow label="Avg. Cash / Call" value={((totalCash / (callsTaken || 1))).toFixed(0)} />
+                            <EfficiencyRow label="Avg. Cash / Close" value={((totalCash / (callsClosed || 1))).toFixed(0)} />
+                        </div>
+                    </div>
+
+                    <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
+                        <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Recent Acquisitions</h3>
+                        <div className="space-y-3">
+                            {appointments.slice(0, 3).map((lead, i) => (
+                                <div key={i} className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                                    <div>
+                                        <p className="text-xs font-black uppercase text-white tracking-tight">{lead.prospect}</p>
+                                        <p className="text-[10px] text-zinc-500 font-bold uppercase">{lead.outcome}</p>
+                                    </div>
+                                    <p className="text-sm font-black text-green-500 italic">${lead.cash.toLocaleString()}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
       </div>
     </div>
   );
 }
 
-function MetricCard({ label, value, highlight }: { label: string, value: any, highlight?: boolean }) {
-  return (
-    <div className={`rounded-xl p-6 transition-all ${highlight ? 'bg-green-500/10 border border-green-500/30' : 'bg-zinc-900 border border-zinc-800'}`}>
-      <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">{label}</p>
-      <h2 className={`text-3xl font-bold tabular-nums ${highlight ? 'text-green-500' : 'text-white'}`}>{value}</h2>
-    </div>
-  );
+function StatBox({ label, value, color }: { label: string, value: any, color: string }) {
+    return (
+        <div className="bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-3xl hover:border-green-500/30 transition-all group">
+            <p className="text-[10px] font-black text-zinc-500 uppercase mb-2 tracking-widest group-hover:text-zinc-300">{label}</p>
+            <h3 className={`text-3xl font-black ${color} tracking-tighter tabular-nums`}>{value}</h3>
+        </div>
+    );
+}
+
+function EfficiencyRow({ label, value }: { label: string, value: string }) {
+    return (
+        <div className="flex items-center justify-between p-4 bg-zinc-900/60 rounded-2xl border border-zinc-800/30">
+            <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">{label}</span>
+            <span className="text-lg font-black text-green-500 italic">${value}</span>
+        </div>
+    );
 }

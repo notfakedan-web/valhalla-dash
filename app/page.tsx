@@ -47,7 +47,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const end = params.end ? new Date(params.end) : null;
   if (end) end.setHours(23, 59, 59, 999);
 
-  // Filter Logic
   const performanceData = allRawData.filter(d => {
     if (!d.date) return false;
     const dDate = new Date(d.date);
@@ -67,7 +66,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
     return true;
   });
 
-  // KPI Calculations
   const totalCash = accountingData.reduce((acc, curr) => acc + curr.cash, 0);
   const appointments = performanceData.filter(d => {
     const out = d.outcome.toLowerCase();
@@ -82,7 +80,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const showRate = appointments.length > 0 ? (callsTaken / appointments.length) * 100 : 0;
   const closeRate = callsTaken > 0 ? (callsClosed / callsTaken) * 100 : 0;
 
-  // Chart Data
+  // Chart Data: Cash Flow by Day
   const dailyMap: Record<string, number> = {};
   accountingData.forEach(d => {
     const day = new Date(d.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -96,7 +94,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
 
   return (
-    <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-green-500/30">
+    <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-cyan-500/30">
       <div className="max-w-[1600px] mx-auto p-6 md:p-10">
         
         {/* TOP BAR */}
@@ -105,35 +103,32 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 <div className="flex items-center gap-2 mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Global Command</span>
                     <div className="w-1 h-1 rounded-full bg-zinc-700" />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-green-400">Sales Performance</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-400">Sales Performance</span>
                 </div>
-                <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Valhalla <span className="text-green-500">OS</span></h1>
+                <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Valhalla <span className="text-cyan-500">OS</span></h1>
             </div>
             <div className="flex items-center gap-4">
-                <div className="px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-full flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-[10px] font-black text-green-500 uppercase tracking-tighter">Terminal Live</span>
+                <div className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-full flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+                    <span className="text-[10px] font-black text-cyan-500 uppercase tracking-tighter">Terminal Live</span>
                 </div>
             </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
-            {/* LEFT SIDEBAR: FILTERS & PRIMARY KPI */}
+            {/* LEFT SIDEBAR */}
             <div className="lg:col-span-3 space-y-6">
                 <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-6 rounded-3xl">
                     <p className="text-[10px] font-black text-zinc-500 uppercase mb-6 tracking-widest">Revenue Filter</p>
                     <Filters platforms={platforms} closers={closers} setters={setters} />
                 </div>
 
-                <div className="relative group overflow-hidden bg-gradient-to-br from-green-600 to-emerald-800 p-8 rounded-3xl shadow-2xl shadow-green-900/20">
+                <div className="relative group overflow-hidden bg-gradient-to-br from-cyan-600 to-blue-700 p-8 rounded-3xl shadow-2xl shadow-cyan-900/20">
                     <p className="text-xs font-black text-white/60 uppercase mb-1 tracking-widest">Net Cash Collected</p>
                     <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">
                         ${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}
                     </h2>
-                    <div className="mt-4 flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-white/80 uppercase">Portfolio Liquidity</span>
-                    </div>
                 </div>
 
                 <div className="bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-3xl">
@@ -152,56 +147,60 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-white" />
                     <StatBox label="Close Rate" value={`${closeRate.toFixed(1)}%`} color="text-white" />
                     <StatBox label="Appointments" value={appointments.length} color="text-white" />
-                    <StatBox label="Acquisitions" value={callsClosed} color="text-green-500" />
+                    <StatBox label="Acquisitions" value={callsClosed} color="text-cyan-500" />
                 </div>
 
-                {/* CASH FLOW VELOCITY (LINE CHART STYLE) */}
-                <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8 shadow-inner">
-                    <div className="flex items-center justify-between mb-10">
+                {/* CASH FLOW VELOCITY (BAR CHART) */}
+                <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8 shadow-inner relative overflow-hidden">
+                    <div className="flex items-center justify-between mb-10 relative z-10">
                         <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Velocity</h3>
                         <span className="text-[10px] font-bold text-zinc-600 italic">Historical Settlement</span>
                     </div>
-                    <div className="h-[280px] w-full relative border-l border-b border-zinc-800/30">
-                        <svg className="absolute inset-0 w-full h-full overflow-visible" preserveAspectRatio="none">
-                            <defs>
-                                <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
-                                    <stop offset="0%" stopColor="#10b981" />
-                                    <stop offset="100%" stopColor="#34d399" />
-                                </linearGradient>
-                            </defs>
-                            <polyline
-                                fill="none"
-                                stroke="url(#lineGrad)"
-                                strokeWidth="4"
-                                strokeLinecap="round"
-                                points={trend.map(([_, cash], i) => {
-                                    const x = (i / (trend.length - 1)) * 1000;
-                                    const y = 280 - (cash / maxCash) * 220;
-                                    return `${x},${y}`;
-                                }).join(' ')}
-                                viewBox="0 0 1000 280"
-                                style={{ vectorEffect: 'non-scaling-stroke' }}
-                            />
-                        </svg>
-                        <div className="absolute inset-0 flex">
-                            {trend.map(([date, cash], i) => (
-                                <div key={i} className="flex-1 flex flex-col justify-end group items-center relative h-full">
-                                    <div className="absolute inset-0 group-hover:bg-green-500/5 transition-colors" />
-                                    <div 
-                                        className="w-3 h-3 bg-white rounded-full z-10 border-4 border-green-500 shadow-[0_0_15px_rgba(16,185,129,0.8)] transition-all group-hover:scale-125" 
-                                        style={{ marginBottom: `${(cash / maxCash) * 220 - 6}px` }} 
-                                    />
-                                    <div className="absolute opacity-0 group-hover:opacity-100 bottom-full mb-10 bg-white text-black text-[9px] font-black px-2 py-1 rounded whitespace-nowrap z-20">
-                                        ${(cash/1000).toFixed(1)}K
-                                    </div>
-                                    <span className="absolute -bottom-8 text-[9px] font-black text-zinc-600 uppercase transition-colors group-hover:text-green-400">{date}</span>
+
+                    <div className="flex h-[320px] w-full relative pt-10 px-4">
+                        {/* Y-Axis Grid Lines */}
+                        <div className="absolute inset-x-0 top-10 bottom-12 flex flex-col justify-between pointer-events-none border-l border-zinc-800/50">
+                            {[1, 0.75, 0.5, 0.25, 0].map((step) => (
+                                <div key={step} className="flex items-center w-full">
+                                    <span className="absolute -left-12 text-[9px] font-bold text-zinc-700 w-10 text-right">
+                                        ${((maxCash * step) / 1000).toFixed(1)}k
+                                    </span>
+                                    <div className="w-full border-t border-zinc-800/30" />
                                 </div>
                             ))}
                         </div>
+
+                        {/* Bars Container */}
+                        <div className="flex flex-1 items-end justify-around gap-2 relative z-10 border-b border-zinc-800/50">
+                            {trend.map(([date, cash], i) => {
+                                const height = (cash / maxCash) * 230;
+                                return (
+                                    <div key={i} className="flex-1 flex flex-col items-center group max-w-[40px]">
+                                        <div className="relative w-full">
+                                            {/* Tooltip */}
+                                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-white text-black text-[10px] font-black px-2 py-1 rounded-md shadow-xl whitespace-nowrap z-30">
+                                                ${cash.toLocaleString()}
+                                            </div>
+                                            {/* Bar */}
+                                            <div 
+                                                className="w-full bg-gradient-to-t from-cyan-600 to-cyan-400 rounded-t-sm transition-all group-hover:from-cyan-400 group-hover:to-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.1)]" 
+                                                style={{ height: `${height}px` }} 
+                                            />
+                                        </div>
+                                        <span className="absolute -bottom-8 text-[9px] font-black text-zinc-600 uppercase transition-colors group-hover:text-cyan-400">
+                                            {date}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
+                    {/* Axis Labels */}
+                    <div className="absolute left-8 bottom-12 transform -rotate-90 origin-left text-[8px] font-black uppercase tracking-widest text-zinc-700">Price (USD)</div>
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest text-zinc-700">Timeline (Date)</div>
                 </div>
 
-                {/* BOTTOM PERFORMANCE GRID */}
+                {/* BOTTOM ANALYTICS */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
                         <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Efficiency Analytics</h3>
@@ -220,7 +219,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                                         <p className="text-xs font-black uppercase text-white tracking-tight">{lead.prospect}</p>
                                         <p className="text-[10px] text-zinc-500 font-bold uppercase">{lead.outcome}</p>
                                     </div>
-                                    <p className="text-sm font-black text-green-500 italic">${lead.cash.toLocaleString()}</p>
+                                    <p className="text-sm font-black text-cyan-500 italic">${lead.cash.toLocaleString()}</p>
                                 </div>
                             ))}
                         </div>
@@ -235,7 +234,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 
 function StatBox({ label, value, color }: { label: string, value: any, color: string }) {
     return (
-        <div className="bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-3xl hover:border-green-500/30 transition-all group">
+        <div className="bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-3xl hover:border-cyan-500/30 transition-all group">
             <p className="text-[10px] font-black text-zinc-500 uppercase mb-2 tracking-widest group-hover:text-zinc-300">{label}</p>
             <h3 className={`text-3xl font-black ${color} tracking-tighter tabular-nums`}>{value}</h3>
         </div>
@@ -246,7 +245,7 @@ function EfficiencyRow({ label, value }: { label: string, value: string }) {
     return (
         <div className="flex items-center justify-between p-4 bg-zinc-900/60 rounded-2xl border border-zinc-800/30">
             <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">{label}</span>
-            <span className="text-lg font-black text-green-500 italic">${value}</span>
+            <span className="text-lg font-black text-cyan-500 italic">${value}</span>
         </div>
     );
 }

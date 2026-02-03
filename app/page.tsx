@@ -46,11 +46,13 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const params = await searchParams;
   const allRawData = await getSheetData();
 
+  // 1. Determine Date Range (Default to today if empty, or min/max of data)
+  const today = new Date();
   const start = params.start ? new Date(params.start) : null;
   const end = params.end ? new Date(params.end) : null;
   if (end) end.setHours(23, 59, 59, 999);
 
-  // GLOBAL FILTERED DATA: This drives EVERYTHING on the page now
+  // 2. Filter Data
   const performanceData = allRawData.filter(d => {
     if (!d.date) return false;
     const dDate = new Date(d.date);
@@ -62,10 +64,8 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
     return true;
   });
 
-  // Calculate Net Cash from the filtered set only
   const totalCash = performanceData.reduce((acc, curr) => acc + curr.cash, 0);
   
-  // Filter for genuine appointments (exclude tests/MRR if needed for revenue)
   const appointments = performanceData.filter(d => {
     const out = d.outcome.toLowerCase();
     const prospect = d.prospect.toLowerCase();
@@ -74,7 +74,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 
   const totalRev = appointments.reduce((acc, curr) => acc + curr.revenue, 0);
 
-  // Stats Logic
   const callsTaken = appointments.filter(d => 
     !['no show', 'rescheduled', 'cancelled'].some(x => d.outcome.toLowerCase().includes(x))
   ).length;
@@ -86,15 +85,43 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const showRate = appointments.length > 0 ? (callsTaken / appointments.length) * 100 : 0;
   const closeRate = callsTaken > 0 ? (callsClosed / callsTaken) * 100 : 0;
 
-  // Chart Data: Cash Flow by Day (Filtered)
-  const dailyMap: Record<string, number> = {};
+  // 3. GRAPH LOGIC: Fill in missing dates
+  // Find the visual range for the graph
+  let graphStart = start;
+  let graphEnd = end;
+
+  // If no filters, find min/max from data to define the range
+  if (!graphStart && performanceData.length > 0) {
+      const times = performanceData.map(d => new Date(d.date).getTime());
+      graphStart = new Date(Math.min(...times));
+  }
+  if (!graphEnd && performanceData.length > 0) {
+      const times = performanceData.map(d => new Date(d.date).getTime());
+      graphEnd = new Date(Math.max(...times));
+  }
+  // Fallback if no data and no filter
+  if (!graphStart) graphStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  if (!graphEnd) graphEnd = today;
+
+  // Generate map of all days in range initialized to 0
+  const dayMap = new Map<string, number>();
+  for (let d = new Date(graphStart); d <= graphEnd; d.setDate(d.getDate() + 1)) {
+      dayMap.set(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 0);
+  }
+
+  // Fill with actual data
   performanceData.forEach(d => {
     const day = new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    dailyMap[day] = (dailyMap[day] || 0) + d.cash;
+    if (dayMap.has(day)) {
+        dayMap.set(day, (dayMap.get(day) || 0) + d.cash);
+    }
   });
-  const trend = Object.entries(dailyMap).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+
+  // Convert to array
+  const trend = Array.from(dayMap.entries());
   const maxCash = Math.max(...trend.map(([_, c]) => c), 1);
 
+  // Filters Options
   const platforms = Array.from(new Set(allRawData.map(d => d.platform))).filter(Boolean) as string[];
   const closers = Array.from(new Set(allRawData.map(d => d.closer))).filter(Boolean) as string[];
   const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
@@ -119,7 +146,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
             </div>
         </div>
 
-        {/* LAYOUT GRID: Fixed proportions to prevent box bloating */}
+        {/* LAYOUT GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 relative">
             
             {/* SIDEBAR FILTERS (1/5 width) */}
@@ -186,14 +213,23 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                                             <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-white text-black text-[10px] font-black px-2 py-1 rounded-md shadow-xl whitespace-nowrap z-30 pointer-events-none">
                                                 ${cash.toLocaleString()}
                                             </div>
-                                            <div className="w-full bg-gradient-to-t from-cyan-600 to-cyan-400 rounded-t-sm transition-all group-hover:from-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.1)]" style={{ height: `${height}px` }} />
+                                            <div 
+                                                className={`w-full rounded-t-sm transition-all shadow-[0_0_20px_rgba(34,211,238,0.1)] ${cash > 0 ? 'bg-gradient-to-t from-cyan-600 to-cyan-400 group-hover:from-cyan-400 group-hover:to-cyan-300' : 'bg-zinc-800/50'}`}
+                                                style={{ height: `${cash > 0 ? height : 4}px` }} 
+                                            />
                                         </div>
-                                        <span className="absolute -bottom-8 text-[9px] font-black text-zinc-600 uppercase group-hover:text-cyan-400">{date}</span>
+                                        <span className="absolute -bottom-8 text-[9px] font-black text-zinc-600 uppercase group-hover:text-cyan-400 truncate w-full text-center">
+                                            {date.split(',')[0]}
+                                        </span>
                                     </div>
                                 );
                             })}
                         </div>
                     </div>
+                    
+                    {/* Axis Labels */}
+                    <div className="absolute left-8 bottom-12 transform -rotate-90 origin-left text-[8px] font-black uppercase tracking-widest text-zinc-700">Price (USD)</div>
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest text-zinc-700">Timeline (Date)</div>
                 </div>
 
                 {/* BOTTOM ANALYTICS */}

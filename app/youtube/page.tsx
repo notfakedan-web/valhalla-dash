@@ -5,6 +5,17 @@ import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
 import UtmBuilder from './UtmBuilder';
 
+// --- HELPERS ---
+const cleanName = (name: string) => {
+  if (!name) return '';
+  return name.toLowerCase().replace(/[^a-z0-9]/g, ''); // "Daniel B." -> "danielb"
+};
+
+const cleanEmail = (email: string) => {
+  if (!email) return '';
+  return email.toLowerCase().trim();
+};
+
 async function getYouTubeAttribution() {
   try {
     const serviceAccountAuth = new JWT({
@@ -13,30 +24,62 @@ async function getYouTubeAttribution() {
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    // 1. FETCH SALES DATA (Original Sheet)
+    // ---------------------------------------------------------
+    // 1. LOAD SALES DATA (Original Sheet)
+    // ---------------------------------------------------------
     const salesDoc = new GoogleSpreadsheet(process.env.SHEET_ID!, serviceAccountAuth);
     await salesDoc.loadInfo();
     const salesSheet = salesDoc.sheetsByIndex[0];
     const salesRows = await salesSheet.getRows();
 
-    const salesMap = new Map<string, { cash: number, revenue: number }>();
+    // Primary Map: Name -> Data
+    const salesByName = new Map<string, { cash: number, revenue: number }>();
+    // Backup Map: Email -> Data
+    const salesByEmail = new Map<string, { cash: number, revenue: number }>();
+    
     salesRows.forEach(row => {
         const get = (h: string) => {
             const k = salesSheet.headerValues.find(header => header.toLowerCase().includes(h.toLowerCase()));
             return k ? row.get(k) : '';
         };
-        const name = (get('Prospect Name') || get('Name') || '').toString().trim().toLowerCase();
-        const parseMoney = (val: string) => parseFloat(val?.toString().replace(/[$, ]/g, '') || '0');
-        if (name) {
-            const existing = salesMap.get(name) || { cash: 0, revenue: 0 };
-            salesMap.set(name, { 
-                cash: existing.cash + parseMoney(get('Cash Collected')), 
-                revenue: existing.revenue + parseMoney(get('Revenue Generated')) 
-            });
+
+        // SALES SHEET: Row C is Merged Name
+        const rawName = get('Prospect Name') || get('Name'); 
+        const rawEmail = get('Email'); // Assuming there is an Email column in Sales
+        
+        const normalizedName = cleanName(rawName);
+        const normalizedEmail = cleanEmail(rawEmail);
+        
+        const parseMoney = (val: string) => {
+            if (!val) return 0;
+            return parseFloat(val.toString().replace(/[$, ]/g, '')) || 0;
+        };
+
+        const data = {
+            cash: parseMoney(get('Cash Collected')), // Row H
+            revenue: parseMoney(get('Revenue'))      // Row I
+        };
+
+        // Populate Maps
+        if (normalizedName) {
+             const existing = salesByName.get(normalizedName) || { cash: 0, revenue: 0 };
+             salesByName.set(normalizedName, { 
+                 cash: existing.cash + data.cash, 
+                 revenue: existing.revenue + data.revenue 
+             });
+        }
+        if (normalizedEmail) {
+             const existing = salesByEmail.get(normalizedEmail) || { cash: 0, revenue: 0 };
+             salesByEmail.set(normalizedEmail, { 
+                 cash: existing.cash + data.cash, 
+                 revenue: existing.revenue + data.revenue 
+             });
         }
     });
 
-    // 2. FETCH LEADS DATA (Lead Flow Sheet)
+    // ---------------------------------------------------------
+    // 2. LOAD LEADS DATA (Lead Flow Sheet)
+    // ---------------------------------------------------------
     const leadsDoc = new GoogleSpreadsheet(process.env.LEAD_FLOW_SHEET_ID!, serviceAccountAuth);
     await leadsDoc.loadInfo();
     const leadsSheet = leadsDoc.sheetsByIndex[0];
@@ -50,38 +93,56 @@ async function getYouTubeAttribution() {
              return k ? row.get(k) : '';
         };
 
-        // ROBUST ID EXTRACTION: Handles full URLs or raw IDs
+        // A. GET VIDEO ID
         const rawContent = getLeadVal('utm_content') || getLeadVal('content') || '';
         let videoId = 'Unknown Video';
-        
         if (rawContent) {
             try {
                 if (rawContent.includes('youtu.be/')) videoId = rawContent.split('youtu.be/')[1].split('?')[0];
                 else if (rawContent.includes('v=')) videoId = rawContent.split('v=')[1].split('&')[0];
-                else if (rawContent.length === 11) videoId = rawContent; // Standard ID length
-                else videoId = rawContent; // Fallback
+                else videoId = rawContent; 
             } catch (e) { videoId = rawContent; }
         }
 
-        const leadName = (getLeadVal('Name') || '').toString().trim().toLowerCase();
-        const sale = salesMap.get(leadName) || { cash: 0, revenue: 0 };
+        // B. GET IDENTITY (Name Split on Row D & E)
+        const firstName = getLeadVal('First Name') || ''; // Row D
+        const lastName = getLeadVal('Last Name') || '';   // Row E
+        const leadEmail = getLeadVal('Email') || '';
+        
+        // Construct Merged Name for Matching
+        const fullName = `${firstName} ${lastName}`;
+        const normalizedLeadName = cleanName(fullName);
+        const normalizedLeadEmail = cleanEmail(leadEmail);
 
+        // C. TRY MATCHING (Name First, Then Email)
+        let sale = salesByName.get(normalizedLeadName);
+        
+        if (!sale && normalizedLeadEmail) {
+            // Backup Strategy: Match by Email
+            sale = salesByEmail.get(normalizedLeadEmail);
+        }
+
+        // Default to 0 if no match found
+        const finalSale = sale || { cash: 0, revenue: 0 };
+
+        // D. AGGREGATE
         if (!videoStats.has(videoId)) {
             videoStats.set(videoId, { id: videoId, leads: 0, cash: 0, revenue: 0 });
         }
         
         const current = videoStats.get(videoId)!;
         current.leads += 1;
-        current.cash += sale.cash;
-        current.revenue += sale.revenue;
+        current.cash += finalSale.cash;
+        current.revenue += finalSale.revenue;
     });
 
-    // 3. ENRICH WITH YOUTUBE METADATA (Title + Thumbnail)
+    // ---------------------------------------------------------
+    // 3. ENRICH WITH METADATA
+    // ---------------------------------------------------------
     const rawStats = Array.from(videoStats.values()).filter(v => v.id !== 'Unknown Video');
     
     const enrichedStats = await Promise.all(rawStats.map(async (vid) => {
         try {
-            // Using oEmbed for free, public metadata (No API Key needed)
             const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid.id}&format=json`, { next: { revalidate: 3600 } });
             if (res.ok) {
                 const data = await res.json();
@@ -92,13 +153,13 @@ async function getYouTubeAttribution() {
                     author: data.author_name 
                 };
             }
-            return { ...vid, title: `Video ${vid.id}`, thumbnail: null };
+            return { ...vid, title: `Video ID: ${vid.id}`, thumbnail: null };
         } catch (e) {
-            return { ...vid, title: `Video ${vid.id}`, thumbnail: null };
+            return { ...vid, title: `Video ID: ${vid.id}`, thumbnail: null };
         }
     }));
 
-    return enrichedStats.sort((a, b) => b.cash - a.cash);
+    return enrichedStats.sort((a, b) => b.cash - a.cash || b.leads - a.leads);
 
   } catch (error) {
     console.error("Attribution Error:", error);

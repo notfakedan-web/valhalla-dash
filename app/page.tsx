@@ -244,16 +244,22 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 
         <div className="bg-[#0d0d0d] border border-zinc-900 rounded-2xl p-10 shadow-2xl">
           <h3 className="text-[10px] font-black uppercase text-zinc-600 mb-12 tracking-widest text-center">Cash Collected Trend</h3>
-          <div className="h-[350px] flex items-end gap-3 px-4">
-            {trend.map(([date, cash], i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-4 group">
-                <div className="relative w-full">
-                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-[9px] font-black text-cyan-400 whitespace-nowrap">${(cash/1000).toFixed(1)}K</div>
-                  <div className="w-full bg-cyan-500 rounded-sm hover:bg-cyan-400 transition-all shadow-sm shadow-cyan-500/10" style={{ height: `${Math.max(4, (cash / (totalCash||1)) * 1200)}px` }} />
+          <div className="h-[350px] flex items-end gap-3 px-4 overflow-hidden">
+            {trend.map(([date, cash], i) => {
+              const maxCash = Math.max(...trend.map(([_, c]) => c));
+              const heightPercentage = maxCash > 0 ? (cash / maxCash) * 100 : 0;
+              const barHeight = Math.max(8, (heightPercentage / 100) * 300);
+              
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-4 group">
+                  <div className="relative w-full">
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-[9px] font-black text-cyan-400 whitespace-nowrap">${(cash/1000).toFixed(1)}K</div>
+                    <div className="w-full bg-cyan-500 rounded-sm hover:bg-cyan-400 transition-all shadow-sm shadow-cyan-500/10" style={{ height: `${barHeight}px` }} />
+                  </div>
+                  <span className="text-[8px] font-black text-zinc-700 uppercase whitespace-nowrap -rotate-45 md:rotate-0">{date}</span>
                 </div>
-                <span className="text-[8px] font-black text-zinc-700 uppercase whitespace-nowrap -rotate-45 md:rotate-0">{date}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

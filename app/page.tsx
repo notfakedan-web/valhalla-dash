@@ -50,6 +50,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const end = params.end ? new Date(params.end) : null;
   if (end) end.setHours(23, 59, 59, 999);
 
+  // Filter Logic for Performance (Based on Call Date)
   const performanceData = allRawData.filter(d => {
     if (!d.date) return false;
     const dDate = new Date(d.date);
@@ -61,6 +62,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
     return true;
   });
 
+  // Filter Logic for Accounting (Based on Timestamp)
   const accountingData = allRawData.filter(d => {
     if (!d.timestamp) return false;
     const tDate = new Date(d.timestamp);
@@ -69,6 +71,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
     return true;
   });
 
+  // Total Cash Collected (from accounting/timestamp data)
   const totalCash = accountingData.reduce((acc, curr) => acc + curr.cash, 0);
   
   const appointments = performanceData.filter(d => {
@@ -78,12 +81,20 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   });
 
   const totalRev = appointments.reduce((acc, curr) => acc + curr.revenue, 0);
-  const callsTaken = appointments.filter(d => !['no show', 'rescheduled', 'cancelled'].some(x => d.outcome.toLowerCase().includes(x))).length;
-  const callsClosed = appointments.filter(d => ['closed', 'deposit collected', 'paid', 'full pay'].some(x => d.outcome.toLowerCase().includes(x))).length;
+
+  // FIX: No Shows, Reschedules, and Cancellations do not count as "Calls Taken"
+  const callsTaken = appointments.filter(d => 
+    !['no show', 'rescheduled', 'cancelled'].some(x => d.outcome.toLowerCase().includes(x))
+  ).length;
+
+  const callsClosed = appointments.filter(d => 
+    ['closed', 'deposit collected', 'paid', 'full pay'].some(x => d.outcome.toLowerCase().includes(x))
+  ).length;
   
   const showRate = appointments.length > 0 ? (callsTaken / appointments.length) * 100 : 0;
   const closeRate = callsTaken > 0 ? (callsClosed / callsTaken) * 100 : 0;
 
+  // Chart Data: Cash Flow by Day
   const dailyMap: Record<string, number> = {};
   accountingData.forEach(d => {
     const day = new Date(d.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -111,107 +122,124 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Valhalla <span className="text-cyan-500">OS</span></h1>
             </div>
             <div className="flex items-center gap-4">
-                <Filters platforms={platforms} closers={closers} setters={setters} />
+                <div className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-full flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+                    <span className="text-[10px] font-black text-cyan-500 uppercase tracking-tighter">Terminal Live</span>
+                </div>
             </div>
         </div>
 
-        {/* PRIMARY FINANCIAL ROW (Moved to top) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 relative z-10">
-            <div className="relative group overflow-hidden bg-gradient-to-br from-cyan-600 to-blue-700 p-8 rounded-3xl shadow-2xl shadow-cyan-900/20">
-                <p className="text-xs font-black text-white/60 uppercase mb-1 tracking-widest">Net Cash Collected</p>
-                <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">
-                    ${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}
-                </h2>
+        {/* REPOSITIONED: PRIMARY FINANCIAL ROW MOVED TO TOP */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative mb-8">
+            <div className="lg:col-span-3 space-y-6 relative z-[60]">
+                <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-6 rounded-3xl h-full">
+                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-6 tracking-widest">Revenue Filter</p>
+                    <Filters platforms={platforms} closers={closers} setters={setters} />
+                </div>
             </div>
 
-            <div className="bg-zinc-900/40 border border-zinc-800/50 p-8 rounded-3xl">
-                <p className="text-xs font-black text-zinc-500 uppercase mb-1 tracking-widest">Total Revenue</p>
-                <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">
-                    ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
-                </h2>
-            </div>
-        </div>
-
-        {/* ANALYTICS CONTENT */}
-        <div className="space-y-6 relative z-10">
-            {/* METRICS ROW */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-white" />
-                <StatBox label="Close Rate" value={`${closeRate.toFixed(1)}%`} color="text-white" />
-                <StatBox label="Appointments" value={appointments.length} color="text-white" />
-                <StatBox label="Acquisitions" value={callsClosed} color="text-cyan-500" />
-            </div>
-
-            {/* CASH FLOW VELOCITY (BAR CHART) */}
-            <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8 shadow-inner relative overflow-hidden">
-                <div className="flex items-center justify-between mb-10 relative z-10">
-                    <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Velocity</h3>
-                    <span className="text-[10px] font-bold text-zinc-600 italic">Historical Settlement</span>
+            <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="relative group overflow-hidden bg-gradient-to-br from-cyan-600 to-blue-700 p-8 rounded-3xl shadow-2xl shadow-cyan-900/20">
+                    <p className="text-xs font-black text-white/60 uppercase mb-1 tracking-widest">Net Cash Collected</p>
+                    <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">
+                        ${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                    </h2>
                 </div>
 
-                <div className="flex h-[320px] w-full relative pt-10 px-4">
-                    {/* Y-Axis Grid Lines */}
-                    <div className="absolute inset-x-0 top-10 bottom-12 flex flex-col justify-between pointer-events-none border-l border-zinc-800/50">
-                        {[1, 0.75, 0.5, 0.25, 0].map((step) => (
-                            <div key={step} className="flex items-center w-full">
-                                <span className="absolute -left-12 text-[9px] font-bold text-zinc-700 w-10 text-right">
-                                    ${((maxCash * step) / 1000).toFixed(1)}k
-                                </span>
-                                <div className="w-full border-t border-zinc-800/30" />
-                            </div>
-                        ))}
+                <div className="bg-zinc-900/40 border border-zinc-800/50 p-8 rounded-3xl">
+                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-1 tracking-widest">Total Revenue</p>
+                    <h3 className="text-5xl font-black text-white tracking-tighter italic tabular-nums">
+                        ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                    </h3>
+                </div>
+            </div>
+        </div>
+
+        {/* MAIN CONTENT AREA */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
+            <div className="lg:col-span-12 space-y-6 relative z-10">
+                
+                {/* METRICS ROW */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-white" />
+                    <StatBox label="Close Rate" value={`${closeRate.toFixed(1)}%`} color="text-white" />
+                    <StatBox label="Appointments" value={appointments.length} color="text-white" />
+                    <StatBox label="Acquisitions" value={callsClosed} color="text-cyan-500" />
+                </div>
+
+                {/* CASH FLOW VELOCITY (BAR CHART) - ALL XY AXIS CODE PRESERVED */}
+                <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8 shadow-inner relative overflow-hidden">
+                    <div className="flex items-center justify-between mb-10 relative z-10">
+                        <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Velocity</h3>
+                        <span className="text-[10px] font-bold text-zinc-600 italic">Historical Settlement</span>
                     </div>
 
-                    {/* Bars Container */}
-                    <div className="flex flex-1 items-end justify-around gap-2 relative z-10 border-b border-zinc-800/50">
-                        {trend.map(([date, cash], i) => {
-                            const height = (cash / maxCash) * 230;
-                            return (
-                                <div key={i} className="flex-1 flex flex-col items-center group max-w-[40px] relative">
-                                    <div className="relative w-full">
-                                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-white text-black text-[10px] font-black px-2 py-1 rounded-md shadow-xl whitespace-nowrap z-30">
-                                            ${cash.toLocaleString()}
-                                        </div>
-                                        <div 
-                                            className="w-full bg-gradient-to-t from-cyan-600 to-cyan-400 rounded-t-sm transition-all group-hover:from-cyan-400 group-hover:to-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.1)]" 
-                                            style={{ height: `${height}px` }} 
-                                        />
-                                    </div>
-                                    <span className="absolute -bottom-8 text-[9px] font-black text-zinc-600 uppercase transition-colors group-hover:text-cyan-400">
-                                        {date}
+                    <div className="flex h-[320px] w-full relative pt-10 px-4">
+                        {/* Y-Axis Grid Lines [PRESERVED] */}
+                        <div className="absolute inset-x-0 top-10 bottom-12 flex flex-col justify-between pointer-events-none border-l border-zinc-800/50">
+                            {[1, 0.75, 0.5, 0.25, 0].map((step) => (
+                                <div key={step} className="flex items-center w-full">
+                                    <span className="absolute -left-12 text-[9px] font-bold text-zinc-700 w-10 text-right">
+                                        ${((maxCash * step) / 1000).toFixed(1)}k
                                     </span>
+                                    <div className="w-full border-t border-zinc-800/30" />
                                 </div>
-                            );
-                        })}
-                    </div>
-                </div>
-                {/* Axis Labels */}
-                <div className="absolute left-8 bottom-12 transform -rotate-90 origin-left text-[8px] font-black uppercase tracking-widest text-zinc-700">Price (USD)</div>
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest text-zinc-700">Timeline (Date)</div>
-            </div>
+                            ))}
+                        </div>
 
-            {/* BOTTOM ANALYTICS */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
-                <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
-                    <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Efficiency Analytics</h3>
-                    <div className="space-y-4">
-                        <EfficiencyRow label="Avg. Cash / Call" value={((totalCash / (callsTaken || 1))).toFixed(0)} />
-                        <EfficiencyRow label="Avg. Cash / Close" value={((totalCash / (callsClosed || 1))).toFixed(0)} />
+                        {/* Bars Container [PRESERVED] */}
+                        <div className="flex flex-1 items-end justify-around gap-2 relative z-10 border-b border-zinc-800/50">
+                            {trend.map(([date, cash], i) => {
+                                const height = (cash / maxCash) * 230;
+                                return (
+                                    <div key={i} className="flex-1 flex flex-col items-center group max-w-[40px] relative">
+                                        <div className="relative w-full">
+                                            {/* Tooltip */}
+                                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-white text-black text-[10px] font-black px-2 py-1 rounded-md shadow-xl whitespace-nowrap z-30 pointer-events-none">
+                                                ${cash.toLocaleString()}
+                                            </div>
+                                            {/* Bar */}
+                                            <div 
+                                                className="w-full bg-gradient-to-t from-cyan-600 to-cyan-400 rounded-t-sm transition-all group-hover:from-cyan-400 group-hover:to-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.1)]" 
+                                                style={{ height: `${height}px` }} 
+                                            />
+                                        </div>
+                                        <span className="absolute -bottom-8 text-[9px] font-black text-zinc-600 uppercase transition-colors group-hover:text-cyan-400">
+                                            {date}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
+                    {/* Axis Labels [PRESERVED] */}
+                    <div className="absolute left-8 bottom-12 transform -rotate-90 origin-left text-[8px] font-black uppercase tracking-widest text-zinc-700">Price (USD)</div>
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest text-zinc-700">Timeline (Date)</div>
                 </div>
 
-                <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
-                    <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Recent Acquisitions</h3>
-                    <div className="space-y-3">
-                        {appointments.slice(0, 3).map((lead, i) => (
-                            <div key={i} className="flex justify-between items-center border-b border-zinc-800 pb-2">
-                                <div>
-                                    <p className="text-xs font-black uppercase text-white tracking-tight">{lead.prospect}</p>
-                                    <p className="text-[10px] text-zinc-500 font-bold uppercase">{lead.outcome}</p>
+                {/* BOTTOM ANALYTICS */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+                    <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
+                        <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Efficiency Analytics</h3>
+                        <div className="space-y-4">
+                            <EfficiencyRow label="Avg. Cash / Call" value={((totalCash / (callsTaken || 1))).toFixed(0)} />
+                            <EfficiencyRow label="Avg. Cash / Close" value={((totalCash / (callsClosed || 1))).toFixed(0)} />
+                        </div>
+                    </div>
+
+                    <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
+                        <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Recent Acquisitions</h3>
+                        <div className="space-y-3">
+                            {appointments.slice(0, 3).map((lead, i) => (
+                                <div key={i} className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                                    <div>
+                                        <p className="text-xs font-black uppercase text-white tracking-tight">{lead.prospect}</p>
+                                        <p className="text-[10px] text-zinc-500 font-bold uppercase">{lead.outcome}</p>
+                                    </div>
+                                    <p className="text-sm font-black text-cyan-500 italic">${lead.cash.toLocaleString()}</p>
                                 </div>
-                                <p className="text-sm font-black text-cyan-500 italic">${lead.cash.toLocaleString()}</p>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>

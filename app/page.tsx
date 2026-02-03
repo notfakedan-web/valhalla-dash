@@ -9,22 +9,18 @@ async function getSheetData() {
   try {
     const serviceAccountAuth = new JWT({
       email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      // Fixes potential formatting issues with private keys in environment variables
       key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
-
     const doc = new GoogleSpreadsheet(process.env.SHEET_ID!, serviceAccountAuth);
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
     const rows = await sheet.getRows();
-
     return rows.map(row => {
       const getVal = (search: string) => {
           const foundKey = sheet.headerValues.find(h => h.toLowerCase().trim().includes(search.toLowerCase().trim()));
           return foundKey ? row.get(foundKey) : '';
       };
-      
       return {
         timestamp: getVal('Timestamp') || '',
         date: getVal('Date Call Was Taken') || '',
@@ -37,222 +33,124 @@ async function getSheetData() {
         revenue: parseFloat(getVal('Revenue Generated')?.toString().replace(/[$, ]/g, '')) || 0,
       };
     });
-  } catch (error) { 
-    console.error("Sheet Fetch Error:", error); 
-    return []; 
-  }
+  } catch (error) { console.error(error); return []; }
 }
 
 export default async function ValhallaDashboard({ searchParams }: { searchParams: Promise<any> }) {
   const params = await searchParams;
   const allRawData = await getSheetData();
-
   const start = params.start ? new Date(params.start) : null;
   const end = params.end ? new Date(params.end) : null;
   if (end) end.setHours(23, 59, 59, 999);
 
-  // Filter Logic for Performance (Based on Call Date)
   const performanceData = allRawData.filter(d => {
     if (!d.date) return false;
     const dDate = new Date(d.date);
     if (start && dDate < start) return false;
     if (end && dDate > end) return false;
     if (params.platform && d.platform !== params.platform) return false;
-    if (params.closer && d.closer !== params.closer) return false;
-    if (params.setter && d.setter !== params.setter) return false;
     return true;
   });
 
-  // Filter Logic for Accounting (Based on Timestamp)
-  const accountingData = allRawData.filter(d => {
+  const totalCash = allRawData.filter(d => {
     if (!d.timestamp) return false;
     const tDate = new Date(d.timestamp);
-    if (start && tDate < start) return false;
-    if (end && tDate > end) return false;
-    return true;
-  });
+    return !(start && tDate < start) && !(end && tDate > end);
+  }).reduce((acc, curr) => acc + curr.cash, 0);
 
-  const totalCash = accountingData.reduce((acc, curr) => acc + curr.cash, 0);
-  
-  const appointments = performanceData.filter(d => {
-    const out = d.outcome.toLowerCase();
-    const prospect = d.prospect.toLowerCase();
-    return !out.includes('mrr') && !out.includes('downsell') && !prospect.includes('test');
-  });
-
+  const appointments = performanceData.filter(d => !d.outcome.toLowerCase().includes('mrr') && !d.prospect.toLowerCase().includes('test'));
   const totalRev = appointments.reduce((acc, curr) => acc + curr.revenue, 0);
   const callsTaken = appointments.filter(d => !['no show', 'rescheduled', 'cancelled'].some(x => d.outcome.toLowerCase().includes(x))).length;
-  const callsClosed = appointments.filter(d => ['closed', 'deposit collected', 'paid', 'full pay'].some(x => d.outcome.toLowerCase().includes(x))).length;
+  const callsClosed = appointments.filter(d => ['closed', 'paid', 'full pay'].some(x => d.outcome.toLowerCase().includes(x))).length;
   
-  const showRate = appointments.length > 0 ? (callsTaken / appointments.length) * 100 : 0;
-  const closeRate = callsTaken > 0 ? (callsClosed / callsTaken) * 100 : 0;
-
-  // Chart Data: Cash Flow by Day
   const dailyMap: Record<string, number> = {};
-  accountingData.forEach(d => {
+  allRawData.forEach(d => {
+    if (!d.timestamp) return;
     const day = new Date(d.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     dailyMap[day] = (dailyMap[day] || 0) + d.cash;
   });
   const trend = Object.entries(dailyMap).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
   const maxCash = Math.max(...trend.map(([_, c]) => c), 1);
 
-  const platforms = Array.from(new Set(allRawData.map(d => d.platform))).filter(Boolean) as string[];
-  const closers = Array.from(new Set(allRawData.map(d => d.closer))).filter(Boolean) as string[];
-  const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
-
   return (
-    <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-cyan-500/30">
-      <div className="max-w-[1600px] mx-auto p-6 md:p-10">
+    <div className="min-h-screen bg-[#050505] text-zinc-100 p-6 md:p-10">
+      <div className="max-w-[1600px] mx-auto">
         
-        {/* TOP BAR */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+        {/* HEADER & FILTERS - High Z-Index Container */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 relative z-[100]">
             <div>
-                <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Global Command</span>
-                    <div className="w-1 h-1 rounded-full bg-zinc-700" />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-400">Sales Performance</span>
-                </div>
                 <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Valhalla <span className="text-cyan-500">OS</span></h1>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mt-1">Terminal Live Intelligence</p>
             </div>
-            <div className="flex items-center gap-4">
-                <div className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-full flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
-                    <span className="text-[10px] font-black text-cyan-500 uppercase tracking-tighter">Terminal Live</span>
+            <Filters platforms={Array.from(new Set(allRawData.map(d => d.platform)))} closers={[]} setters={[]} />
+        </div>
+
+        {/* TOP ROW: PRIMARY KPIs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="bg-gradient-to-br from-cyan-600 to-blue-700 p-8 rounded-[32px] shadow-2xl">
+                <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1">Cash Collected</p>
+                <h2 className="text-4xl font-black text-white tracking-tighter">${totalCash.toLocaleString()}</h2>
+            </div>
+            <div className="bg-zinc-900/40 border border-zinc-800/50 p-8 rounded-[32px]">
+                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Total Revenue</p>
+                <h2 className="text-4xl font-black text-white tracking-tighter">${totalRev.toLocaleString()}</h2>
+            </div>
+            <StatBox label="Show Rate" value={`${((callsTaken/(appointments.length||1))*100).toFixed(1)}%`} />
+            <StatBox label="Close Rate" value={`${((callsClosed/(callsTaken||1))*100).toFixed(1)}%`} />
+        </div>
+
+        {/* MIDDLE ROW: CHART */}
+        <div className="grid grid-cols-1 gap-6 mb-8">
+            <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-[40px] p-10 shadow-inner relative overflow-hidden">
+                <div className="flex items-center justify-between mb-12">
+                    <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Settlement Velocity</h3>
+                </div>
+                <div className="flex h-[300px] w-full items-end justify-around gap-2 relative border-b border-zinc-800/50 px-4">
+                    {trend.map(([date, cash], i) => (
+                        <div key={i} className="flex-1 flex flex-col items-center group max-w-[50px] relative">
+                            <div className="absolute -top-10 opacity-0 group-hover:opacity-100 bg-white text-black text-[10px] font-black px-2 py-1 rounded shadow-xl transition-all z-20">
+                                ${cash.toLocaleString()}
+                            </div>
+                            <div className="w-full bg-gradient-to-t from-cyan-600 to-cyan-400 rounded-t-sm transition-all group-hover:from-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.1)]" 
+                                 style={{ height: `${(cash/maxCash)*250}px` }} />
+                            <span className="absolute -bottom-8 text-[9px] font-black text-zinc-600 uppercase">{date}</span>
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
-            
-            {/* LEFT SIDEBAR - Z-index added to ensure it stays above graph layers */}
-            <div className="lg:col-span-3 space-y-6 relative z-[60]">
-                <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-6 rounded-3xl">
-                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-6 tracking-widest">Revenue Filter</p>
-                    <Filters platforms={platforms} closers={closers} setters={setters} />
-                </div>
-
-                <div className="relative group overflow-hidden bg-gradient-to-br from-cyan-600 to-blue-700 p-8 rounded-3xl shadow-2xl shadow-cyan-900/20">
-                    <p className="text-xs font-black text-white/60 uppercase mb-1 tracking-widest">Net Cash Collected</p>
-                    <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">
-                        ${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}
-                    </h2>
-                </div>
-
-                <div className="bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-3xl">
-                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-1 tracking-widest">Total Revenue</p>
-                    <h3 className="text-3xl font-black text-white tracking-tighter italic">
-                        ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
-                    </h3>
-                </div>
+        {/* BOTTOM ROW: ACQUISITIONS */}
+        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[40px] overflow-hidden">
+            <div className="p-8 border-b border-zinc-800/50 bg-zinc-900/40 flex justify-between items-center">
+                <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400">Acquisition Log</h3>
+                <span className="text-[10px] font-bold text-zinc-600 italic">Recent 50</span>
             </div>
-
-            {/* RIGHT MAIN CONTENT */}
-            <div className="lg:col-span-9 space-y-6 relative z-10">
-                
-                {/* METRICS ROW */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-white" />
-                    <StatBox label="Close Rate" value={`${closeRate.toFixed(1)}%`} color="text-white" />
-                    <StatBox label="Appointments" value={appointments.length} color="text-white" />
-                    <StatBox label="Acquisitions" value={callsClosed} color="text-cyan-500" />
-                </div>
-
-                {/* CASH FLOW VELOCITY (BAR CHART) */}
-                <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8 shadow-inner relative overflow-hidden">
-                    <div className="flex items-center justify-between mb-10 relative z-10">
-                        <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Velocity</h3>
-                        <span className="text-[10px] font-bold text-zinc-600 italic">Historical Settlement</span>
-                    </div>
-
-                    <div className="flex h-[320px] w-full relative pt-10 px-4">
-                        {/* Y-Axis Grid Lines */}
-                        <div className="absolute inset-x-0 top-10 bottom-12 flex flex-col justify-between pointer-events-none border-l border-zinc-800/50">
-                            {[1, 0.75, 0.5, 0.25, 0].map((step) => (
-                                <div key={step} className="flex items-center w-full">
-                                    <span className="absolute -left-12 text-[9px] font-bold text-zinc-700 w-10 text-right">
-                                        ${((maxCash * step) / 1000).toFixed(1)}k
-                                    </span>
-                                    <div className="w-full border-t border-zinc-800/30" />
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Bars Container */}
-                        <div className="flex flex-1 items-end justify-around gap-2 relative z-10 border-b border-zinc-800/50">
-                            {trend.map(([date, cash], i) => {
-                                const height = (cash / maxCash) * 230;
-                                return (
-                                    <div key={i} className="flex-1 flex flex-col items-center group max-w-[40px] relative">
-                                        <div className="relative w-full">
-                                            {/* Tooltip */}
-                                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-white text-black text-[10px] font-black px-2 py-1 rounded-md shadow-xl whitespace-nowrap z-30">
-                                                ${cash.toLocaleString()}
-                                            </div>
-                                            {/* Bar */}
-                                            <div 
-                                                className="w-full bg-gradient-to-t from-cyan-600 to-cyan-400 rounded-t-sm transition-all group-hover:from-cyan-400 group-hover:to-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.1)]" 
-                                                style={{ height: `${height}px` }} 
-                                            />
-                                        </div>
-                                        <span className="absolute -bottom-8 text-[9px] font-black text-zinc-600 uppercase transition-colors group-hover:text-cyan-400">
-                                            {date}
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                    {/* Axis Labels */}
-                    <div className="absolute left-8 bottom-12 transform -rotate-90 origin-left text-[8px] font-black uppercase tracking-widest text-zinc-700">Price (USD)</div>
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest text-zinc-700">Timeline (Date)</div>
-                </div>
-
-                {/* BOTTOM ANALYTICS */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
-                    <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
-                        <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Efficiency Analytics</h3>
-                        <div className="space-y-4">
-                            <EfficiencyRow label="Avg. Cash / Call" value={((totalCash / (callsTaken || 1))).toFixed(0)} />
-                            <EfficiencyRow label="Avg. Cash / Close" value={((totalCash / (callsClosed || 1))).toFixed(0)} />
-                        </div>
-                    </div>
-
-                    <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
-                        <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Recent Acquisitions</h3>
-                        <div className="space-y-3">
-                            {appointments.slice(0, 3).map((lead, i) => (
-                                <div key={i} className="flex justify-between items-center border-b border-zinc-800 pb-2">
-                                    <div>
-                                        <p className="text-xs font-black uppercase text-white tracking-tight">{lead.prospect}</p>
-                                        <p className="text-[10px] text-zinc-500 font-bold uppercase">{lead.outcome}</p>
-                                    </div>
-                                    <p className="text-sm font-black text-cyan-500 italic">${lead.cash.toLocaleString()}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <table className="w-full text-left">
+                <thead className="bg-zinc-900/60 text-zinc-500 text-[10px] font-black uppercase tracking-widest border-b border-zinc-800/50">
+                    <tr><th className="px-8 py-5">Prospect</th><th className="px-8 py-5">Outcome</th><th className="px-8 py-5">Cash</th></tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/30">
+                    {appointments.slice(0, 50).map((lead, i) => (
+                        <tr key={i} className="hover:bg-cyan-500/[0.02] transition-colors group">
+                            <td className="px-8 py-5 text-sm font-black text-white uppercase tracking-tight">{lead.prospect}</td>
+                            <td className="px-8 py-5 text-[10px] font-bold text-zinc-500 uppercase">{lead.outcome}</td>
+                            <td className="px-8 py-5 text-sm font-black text-cyan-500 italic">${lead.cash.toLocaleString()}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
         </div>
       </div>
     </div>
   );
 }
 
-function StatBox({ label, value, color }: { label: string, value: any, color: string }) {
+function StatBox({ label, value }: { label: string, value: string }) {
     return (
-        <div className="bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-3xl hover:border-cyan-500/30 transition-all group">
-            <p className="text-[10px] font-black text-zinc-500 uppercase mb-2 tracking-widest group-hover:text-zinc-300">{label}</p>
-            <h3 className={`text-3xl font-black ${color} tracking-tighter tabular-nums`}>{value}</h3>
-        </div>
-    );
-}
-
-function EfficiencyRow({ label, value }: { label: string, value: string }) {
-    return (
-        <div className="flex items-center justify-between p-4 bg-zinc-900/60 rounded-2xl border border-zinc-800/30">
-            <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">{label}</span>
-            <span className="text-lg font-black text-cyan-500 italic">${value}</span>
+        <div className="bg-zinc-900/40 border border-zinc-800/50 p-8 rounded-[32px] hover:border-cyan-500/30 transition-all">
+            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{label}</p>
+            <h2 className="text-4xl font-black text-white tracking-tighter tabular-nums">{value}</h2>
         </div>
     );
 }

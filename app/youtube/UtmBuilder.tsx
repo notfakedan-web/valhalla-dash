@@ -1,12 +1,23 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Copy, Youtube, TrendingUp, DollarSign, Link as LinkIcon, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Copy, Youtube, TrendingUp, DollarSign, Link as LinkIcon, Image as ImageIcon, X } from 'lucide-react';
 
 export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
   const [baseUrl, setBaseUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [generatedLink, setGeneratedLink] = useState('');
+  
+  // State to manage visible videos (hiding deleted ones)
+  const [hiddenVideos, setHiddenVideos] = useState<string[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load "Deleted" videos from memory on startup
+  useEffect(() => {
+    const saved = localStorage.getItem('valhalla_hidden_videos');
+    if (saved) setHiddenVideos(JSON.parse(saved));
+    setIsLoaded(true);
+  }, []);
 
   const generateLink = () => {
     if (!baseUrl || !videoUrl) return;
@@ -27,6 +38,17 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
     navigator.clipboard.writeText(generatedLink);
     alert("Link Copied!");
   };
+
+  const handleDelete = (id: string) => {
+      const newHidden = [...hiddenVideos, id];
+      setHiddenVideos(newHidden);
+      localStorage.setItem('valhalla_hidden_videos', JSON.stringify(newHidden));
+  };
+
+  // Filter out the hidden videos
+  const visibleVideos = videoStats.filter(v => !hiddenVideos.includes(v.id));
+
+  if (!isLoaded) return null; // Prevent hydration mismatch
 
   return (
     <div className="space-y-8">
@@ -87,26 +109,47 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
       {/* 2. ROI GRID */}
       <div className="flex items-center justify-between mt-12 mb-6">
         <h3 className="text-xl font-black uppercase italic text-white">Video ROI <span className="text-red-500">Intelligence</span></h3>
-        <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-[10px] font-bold uppercase text-red-500 tracking-widest">Live Attribution</span>
+        <div className="flex items-center gap-4">
+            {hiddenVideos.length > 0 && (
+                <button 
+                    onClick={() => { localStorage.removeItem('valhalla_hidden_videos'); setHiddenVideos([]); }}
+                    className="text-[9px] font-bold uppercase text-zinc-600 hover:text-white transition-colors"
+                >
+                    Restore Hidden ({hiddenVideos.length})
+                </button>
+            )}
+            <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-[10px] font-bold uppercase text-red-500 tracking-widest">Live Attribution</span>
+            </div>
         </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {videoStats.map((vid, i) => (
-              <div key={i} className="bg-zinc-900/40 border border-zinc-800/50 rounded-3xl hover:border-red-500/30 transition-all group relative overflow-hidden flex flex-col">
+          {visibleVideos.map((vid, i) => (
+              <div key={vid.id} className="bg-zinc-900/40 border border-zinc-800/50 rounded-3xl hover:border-red-500/30 transition-all group relative overflow-hidden flex flex-col animate-in fade-in zoom-in duration-300">
                   
                   {/* THUMBNAIL AREA */}
-                  <div className="h-40 w-full relative bg-zinc-800/50 overflow-hidden">
+                  <div className="h-40 w-full relative bg-zinc-800/50 overflow-hidden group/image">
                       {vid.thumbnail ? (
-                          <img src={vid.thumbnail} alt={vid.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          <img src={vid.thumbnail} alt={vid.title} className="w-full h-full object-cover group-hover/image:scale-105 transition-transform duration-500" />
                       ) : (
                           <div className="w-full h-full flex items-center justify-center text-zinc-700"><ImageIcon size={40} /></div>
                       )}
-                      <div className="absolute top-0 right-0 bg-black/80 px-3 py-1 rounded-bl-xl border-l border-b border-zinc-800 backdrop-blur-sm">
+                      
+                      {/* Rank Badge */}
+                      <div className="absolute top-0 left-0 bg-black/80 px-3 py-1 rounded-br-xl border-r border-b border-zinc-800 backdrop-blur-sm z-10">
                           <span className="text-[10px] font-black text-white">#{i + 1}</span>
                       </div>
+
+                      {/* DELETE BUTTON (Hover Only) */}
+                      <button 
+                          onClick={(e) => { e.stopPropagation(); handleDelete(vid.id); }}
+                          className="absolute top-2 right-2 p-2 bg-black/60 hover:bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 backdrop-blur-md z-20"
+                          title="Hide Video"
+                      >
+                          <X size={14} />
+                      </button>
                   </div>
 
                   {/* CONTENT */}
@@ -117,14 +160,16 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
                       
                       <div className="grid grid-cols-2 gap-4 border-t border-zinc-800/50 pt-4 mt-auto">
                           <div>
-                              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Pipeline</p>
+                              {/* UPDATED LABEL TO REVENUE */}
+                              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Revenue</p>
                               <div className="flex items-center gap-2">
                                   <TrendingUp size={12} className="text-cyan-500" />
                                   <span className="text-lg font-black text-white">${(vid.revenue / 1000).toFixed(1)}k</span>
                               </div>
                           </div>
                           <div>
-                              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Cash</p>
+                              {/* UPDATED LABEL TO CASH COLLECTED */}
+                              <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Cash Collected</p>
                               <div className="flex items-center gap-2">
                                   <DollarSign size={12} className="text-green-500" />
                                   <span className="text-lg font-black text-white">${(vid.cash / 1000).toFixed(1)}k</span>
@@ -138,7 +183,7 @@ export default function UtmBuilder({ videoStats }: { videoStats: any[] }) {
                       </div>
 
                       <div className="mt-4 w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-gradient-to-r from-red-600 to-red-400" style={{ width: `${(vid.cash / Math.max(...videoStats.map((v:any) => v.cash), 1)) * 100}%` }} />
+                          <div className="h-full bg-gradient-to-r from-red-600 to-red-400" style={{ width: `${(vid.cash / Math.max(...visibleVideos.map((v:any) => v.cash), 1)) * 100}%` }} />
                       </div>
                   </div>
               </div>

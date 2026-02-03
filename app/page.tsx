@@ -9,6 +9,7 @@ async function getSheetData() {
   try {
     const serviceAccountAuth = new JWT({
       email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      // Fixes potential formatting issues with private keys in environment variables
       key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
@@ -20,7 +21,7 @@ async function getSheetData() {
 
     return rows.map(row => {
       const getVal = (search: string) => {
-          const foundKey = sheet.headerValues.find(h => h.toLowerCase().includes(search.toLowerCase()));
+          const foundKey = sheet.headerValues.find(h => h.toLowerCase().trim().includes(search.toLowerCase().trim()));
           return foundKey ? row.get(foundKey) : '';
       };
       
@@ -36,7 +37,10 @@ async function getSheetData() {
         revenue: parseFloat(getVal('Revenue Generated')?.toString().replace(/[$, ]/g, '')) || 0,
       };
     });
-  } catch (error) { console.error(error); return []; }
+  } catch (error) { 
+    console.error("Sheet Fetch Error:", error); 
+    return []; 
+  }
 }
 
 export default async function ValhallaDashboard({ searchParams }: { searchParams: Promise<any> }) {
@@ -47,6 +51,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const end = params.end ? new Date(params.end) : null;
   if (end) end.setHours(23, 59, 59, 999);
 
+  // Filter Logic for Performance (Based on Call Date)
   const performanceData = allRawData.filter(d => {
     if (!d.date) return false;
     const dDate = new Date(d.date);
@@ -58,6 +63,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
     return true;
   });
 
+  // Filter Logic for Accounting (Based on Timestamp)
   const accountingData = allRawData.filter(d => {
     if (!d.timestamp) return false;
     const tDate = new Date(d.timestamp);
@@ -67,6 +73,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   });
 
   const totalCash = accountingData.reduce((acc, curr) => acc + curr.cash, 0);
+  
   const appointments = performanceData.filter(d => {
     const out = d.outcome.toLowerCase();
     const prospect = d.prospect.toLowerCase();
@@ -115,10 +122,10 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
             </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
             
-            {/* LEFT SIDEBAR */}
-            <div className="lg:col-span-3 space-y-6">
+            {/* LEFT SIDEBAR - Z-index added to ensure it stays above graph layers */}
+            <div className="lg:col-span-3 space-y-6 relative z-[60]">
                 <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-6 rounded-3xl">
                     <p className="text-[10px] font-black text-zinc-500 uppercase mb-6 tracking-widest">Revenue Filter</p>
                     <Filters platforms={platforms} closers={closers} setters={setters} />
@@ -140,7 +147,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
             </div>
 
             {/* RIGHT MAIN CONTENT */}
-            <div className="lg:col-span-9 space-y-6">
+            <div className="lg:col-span-9 space-y-6 relative z-10">
                 
                 {/* METRICS ROW */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -175,7 +182,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                             {trend.map(([date, cash], i) => {
                                 const height = (cash / maxCash) * 230;
                                 return (
-                                    <div key={i} className="flex-1 flex flex-col items-center group max-w-[40px]">
+                                    <div key={i} className="flex-1 flex flex-col items-center group max-w-[40px] relative">
                                         <div className="relative w-full">
                                             {/* Tooltip */}
                                             <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-white text-black text-[10px] font-black px-2 py-1 rounded-md shadow-xl whitespace-nowrap z-30">
@@ -201,7 +208,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 </div>
 
                 {/* BOTTOM ANALYTICS */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
                     <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
                         <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Efficiency Analytics</h3>
                         <div className="space-y-4">

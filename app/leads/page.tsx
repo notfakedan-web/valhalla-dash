@@ -54,10 +54,17 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   const allLeads = await getLeadsData();
 
+  // DATE RANGE LOGIC (Fixing the glitch)
+  const start = params.start ? new Date(params.start) : null;
+  const end = params.end ? new Date(params.end) : null;
+  // Crucial: Set end date to the very end of that day to capture leads
+  if (end) end.setHours(23, 59, 59, 999);
+
   // 1. FILTER LOGIC
   const filtered = allLeads.filter(d => {
-    if (params.start && d.isoDate && d.isoDate < new Date(params.start)) return false;
-    if (params.end && d.isoDate && d.isoDate > new Date(params.end)) return false;
+    // Use the 'start' and 'end' variables defined above, NOT new Date(params.end) which defaults to 00:00
+    if (start && d.isoDate && d.isoDate < start) return false;
+    if (end && d.isoDate && d.isoDate > end) return false;
     if (params.platform && d.source !== params.platform) return false;
     return true;
   });
@@ -71,6 +78,15 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
   // 3. CHART DATA PREP
   const dailyCounts: Record<string, number> = {};
+  
+  // Fill missing dates for smoother graph if range selected
+  if (start && end) {
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          dailyCounts[label] = 0;
+      }
+  }
+
   filtered.forEach(d => {
       const label = d.isoDate ? d.isoDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown';
       if (label !== 'Unknown') {
@@ -82,7 +98,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     return new Date(a[0]).getTime() - new Date(b[0]).getTime();
   });
   
-  const maxDayLeads = Math.max(...timeTrend.map(t => t[1]), 1);
+  const maxDayLeads = Math.max(...timeTrend.map(t => t[1]), 5);
 
   const cashMap: Record<string, number> = {};
   filtered.forEach(d => {
@@ -91,17 +107,19 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   });
   const cashBrackets = Object.entries(cashMap).sort((a, b) => b[1] - a[1]);
 
+  const qualifiedLeads = filtered.filter(l => l.cashOnHand.includes('10k') || l.cashOnHand.includes('5k')).length;
+
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-cyan-500/30">
       <div className="max-w-[1600px] mx-auto p-6 md:p-10">
         
-        {/* HEADER & FILTERS (Moved to Top) */}
+        {/* HEADER & FILTERS */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-12 relative z-[100]">
             <div>
                 <div className="flex items-center gap-2 mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Analytics</span>
                     <div className="w-1 h-1 rounded-full bg-zinc-700" />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-400">Leads Intelligence</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-500">Leads Intelligence</span>
                 </div>
                 <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Lead Flow <span className="text-cyan-500">Vault</span></h1>
             </div>
@@ -118,91 +136,110 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         {/* LAYOUT GRID */}
         <div className="space-y-6 relative z-10">
             
-            {/* KPI ROW */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Total Leads Card */}
-                <div className="col-span-1 md:col-span-1 relative group overflow-hidden bg-gradient-to-br from-cyan-600 to-blue-700 p-8 rounded-3xl shadow-2xl shadow-cyan-900/20">
+            {/* KPI ROW - 4 Columns for better proportions */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                
+                {/* Total Leads Card - More Compact */}
+                <div className="relative group overflow-hidden bg-gradient-to-br from-cyan-600 to-blue-700 p-6 rounded-3xl shadow-2xl shadow-cyan-900/20">
                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-                        <svg width="80" height="80" viewBox="0 0 24 24" fill="white"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                        <svg width="60" height="60" viewBox="0 0 24 24" fill="white"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
                     </div>
-                    <p className="text-xs font-black text-white/60 uppercase mb-1 tracking-widest">Total Acquisitions</p>
-                    <h2 className="text-6xl font-black text-white tracking-tighter tabular-nums">{filtered.length}</h2>
-                    <div className="mt-4 flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                        <span className="text-[10px] font-bold text-white/80 uppercase">Inbound Pipeline</span>
+                    <p className="text-[10px] font-black text-white/60 uppercase mb-1 tracking-widest">Total Acquisitions</p>
+                    <h2 className="text-4xl font-black text-white tracking-tighter tabular-nums">{filtered.length}</h2>
+                    <div className="mt-3 flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                        <span className="text-[9px] font-bold text-white/80 uppercase">Inbound</span>
                     </div>
                 </div>
 
-                {/* Investment Profiles (Expanded) */}
-                <div className="col-span-1 md:col-span-2 bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
-                    <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Investment Profiles</h3>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        {cashBrackets.map(([bracket, count], i) => (
-                            <div key={i} className="bg-zinc-900/50 border border-zinc-800/50 p-4 rounded-xl hover:border-cyan-500/50 transition-all">
-                                <p className="text-[9px] font-black text-zinc-500 uppercase mb-2 truncate" title={bracket}>{bracket}</p>
-                                <div className="flex items-end gap-2">
-                                    <span className="text-2xl font-black text-white">{count}</span>
-                                    <span className="text-[9px] font-bold text-cyan-500 mb-1 uppercase">leads</span>
+                {/* Qualified Leads */}
+                <div className="bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-3xl hover:border-cyan-500/20 transition-all">
+                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-1 tracking-widest">Qualified (High Ticket)</p>
+                    <h3 className="text-4xl font-black text-white tracking-tighter italic tabular-nums">{qualifiedLeads}</h3>
+                </div>
+
+                {/* Placeholder / Empty Slots for future metrics or just spacing */}
+                <div className="lg:col-span-2 hidden lg:block"></div> 
+            </div>
+
+            {/* CHART ROW */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* LINE CHART (2/3 width) */}
+                <div className="lg:col-span-2 bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8 shadow-inner relative overflow-hidden">
+                    <div className="flex items-center justify-between mb-8 relative z-10">
+                        <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Growth Velocity</h3>
+                        <span className="text-[10px] font-bold text-zinc-600 italic">Daily Submission Volume</span>
+                    </div>
+                    
+                    <div className="h-[250px] w-full relative pt-4 pl-4">
+                        {/* Y-Axis Grid Lines & Labels */}
+                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
+                            {[1, 0.75, 0.5, 0.25, 0].map(step => (
+                                <div key={step} className="w-full border-t border-zinc-800/30 relative">
+                                    <span className="absolute -left-8 -top-2 text-[8px] font-bold text-zinc-700 w-6 text-right">
+                                        {(maxDayLeads * step).toFixed(0)}
+                                    </span>
                                 </div>
-                                <div className="mt-2 w-full bg-zinc-800 h-1 rounded-full overflow-hidden">
-                                    <div className="h-full bg-cyan-500" style={{ width: `${(count / filtered.length) * 100}%` }} />
+                            ))}
+                        </div>
+
+                        {/* Chart Area */}
+                        {timeTrend.length > 0 ? (
+                          <>
+                            <div className="absolute inset-0 flex items-end justify-between px-2 pb-6 z-10">
+                                {timeTrend.map(([date, count], i) => (
+                                    <div key={i} className="flex-1 flex flex-col justify-end group items-center relative h-full">
+                                        {/* Hover Bar */}
+                                        <div className="absolute inset-0 bg-cyan-500/0 group-hover:bg-cyan-500/5 transition-colors rounded-t-sm" />
+                                        
+                                        {/* The Point/Bar */}
+                                        <div 
+                                            className="w-full bg-cyan-500/20 group-hover:bg-cyan-500 transition-all rounded-t-sm relative min-w-[4px] max-w-[20px]" 
+                                            style={{ height: `${(count / maxDayLeads) * 100}%` }} 
+                                        />
+                                        
+                                        {/* Tooltip */}
+                                        <div className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-800 text-white text-[9px] font-bold px-2 py-1 rounded shadow-lg z-20 whitespace-nowrap pointer-events-none">
+                                            {date}: {count} Leads
+                                        </div>
+
+                                        {/* X-Axis Label (Only show some to avoid crowding) */}
+                                        <span className="absolute -bottom-6 text-[8px] font-bold text-zinc-600 uppercase hidden group-hover:block whitespace-nowrap">
+                                            {date}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                          </>
+                        ) : (
+                            <div className="h-full flex items-center justify-center text-zinc-600 text-xs font-bold uppercase tracking-widest">
+                                No data for selected range
+                            </div>
+                        )}
+                        
+                        {/* Axis Titles */}
+                        <div className="absolute -left-6 bottom-1/2 transform -rotate-90 origin-left text-[8px] font-black uppercase tracking-widest text-zinc-700">Volume (Leads)</div>
+                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest text-zinc-700">Timeline (Date)</div>
+                    </div>
+                </div>
+
+                {/* INVESTMENT PROFILES (1/3 width) */}
+                <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
+                    <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Investment Profiles</h3>
+                    <div className="space-y-4">
+                        {cashBrackets.map(([bracket, count]) => (
+                            <div key={bracket} className="group">
+                                <div className="flex justify-between text-[10px] font-bold uppercase text-zinc-500 mb-1">
+                                    <span className="truncate max-w-[150px]">{bracket}</span>
+                                    <span className="text-white">{count} Leads</span>
+                                </div>
+                                <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-cyan-500 group-hover:bg-cyan-400 transition-all" style={{ width: `${(count / filtered.length) * 100}%` }} />
                                 </div>
                             </div>
                         ))}
                     </div>
-                </div>
-            </div>
-
-            {/* CHART ROW */}
-            <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8 shadow-inner relative overflow-hidden">
-                <div className="flex items-center justify-between mb-10">
-                    <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Growth Velocity</h3>
-                    <span className="text-[10px] font-bold text-zinc-600 italic">Daily Submission Volume</span>
-                </div>
-                <div className="h-[250px] w-full relative">
-                    {timeTrend.length > 1 ? (
-                      <>
-                        <svg className="absolute inset-0 w-full h-full overflow-visible" preserveAspectRatio="none">
-                            <defs>
-                                <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
-                                    <stop offset="0%" stopColor="#22d3ee" />
-                                    <stop offset="100%" stopColor="#818cf8" />
-                                </linearGradient>
-                            </defs>
-                            <polyline
-                                fill="none"
-                                stroke="url(#lineGrad)"
-                                strokeWidth="4"
-                                strokeLinecap="round"
-                                points={timeTrend.map(([_, count], i) => {
-                                    const svgX = (i / (timeTrend.length - 1)) * 1000;
-                                    const svgY = 250 - (count / maxDayLeads) * 200;
-                                    return `${svgX},${svgY}`;
-                                }).join(' ')}
-                                viewBox="0 0 1000 250"
-                                style={{ vectorEffect: 'non-scaling-stroke' }}
-                            />
-                        </svg>
-                        <div className="absolute inset-0 flex border-b border-zinc-800/50">
-                            {timeTrend.map(([date, count], i) => (
-                                <div key={i} className="flex-1 flex flex-col justify-end group items-center relative h-full">
-                                    <div className="absolute inset-0 bg-cyan-500/0 group-hover:bg-cyan-500/5 transition-colors" />
-                                    <div 
-                                        className="w-3 h-3 bg-white rounded-full z-10 border-4 border-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.8)] transition-all group-hover:scale-125" 
-                                        style={{ marginBottom: `${(count / maxDayLeads) * 200 - 6}px` }} 
-                                    />
-                                    <div className="absolute -bottom-10 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg z-20 whitespace-nowrap">
-                                        {date}: {count} Leads
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                      </>
-                    ) : (
-                        <div className="h-full flex items-center justify-center text-zinc-600 text-xs font-bold uppercase tracking-widest">
-                            Not enough data to graph
-                        </div>
-                    )}
                 </div>
             </div>
 

@@ -1,7 +1,19 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-/* Add to globals.css */
-.cash-velocity-container {
-    isolation: isolate;
+/* FORCE STACKING CONTEXTS */
+#calendar-portal-root {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+}
+
+canvas, svg {
+  z-index: 1 !important;
+  position: relative;
+}
+
+/* Ensure the chart container doesn't "eat" the calendar */
+.bg-zinc-900\/40, .bg-\[\#0c0c0c\] {
+  isolation: auto !important;
+  z-index: 10 !important;
 }

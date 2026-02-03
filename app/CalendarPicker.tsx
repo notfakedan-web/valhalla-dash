@@ -14,7 +14,6 @@ export default function CalendarPicker() {
   const [start, setStart] = useState<Date | null>(null);
   const [end, setEnd] = useState<Date | null>(null);
 
-  // Helper to format date as YYYY-MM-DD without timezone shifting
   const toDateString = (date: Date) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -22,7 +21,6 @@ export default function CalendarPicker() {
     return `${y}-${m}-${d}`;
   };
 
-  // Helper to parse YYYY-MM-DD back to a local Date object
   const fromDateString = (str: string) => {
     const [y, m, d] = str.split('-').map(Number);
     return new Date(y, m - 1, d);
@@ -53,11 +51,9 @@ export default function CalendarPicker() {
       setStart(clickedDate);
       setEnd(null);
     } else {
-      // Logic for the second click
       let finalStart = start;
       let finalEnd = clickedDate;
 
-      // Flip them if the user clicks a date earlier than the start date
       if (clickedDate < start) {
         finalStart = clickedDate;
         finalEnd = start;
@@ -82,9 +78,10 @@ export default function CalendarPicker() {
     <div className="relative" ref={containerRef}>
       <button 
         onClick={() => setIsOpen(!isOpen)} 
-        className="flex items-center gap-3 bg-[#0d0d0d] border border-zinc-800 px-4 py-2.5 rounded-xl hover:border-zinc-700 transition-all text-[11px] font-bold text-zinc-300 shadow-sm min-w-[220px]"
+        className="flex items-center gap-4 bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700 px-5 py-3.5 rounded-xl hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/20 transition-all text-sm font-bold text-zinc-300 min-w-[240px]"
+        style={{ fontFamily: "'Outfit', sans-serif" }}
       >
-        <CalendarIcon size={14} className="text-zinc-500" />
+        <CalendarIcon size={16} className="text-zinc-500" />
         {start ? (
             <span>
                 {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -94,29 +91,28 @@ export default function CalendarPicker() {
       </button>
 
       {isOpen && (
-        <div className="absolute top-full mt-2 left-0 z-[100] bg-[#0a0a0a] border border-zinc-800 p-6 rounded-2xl shadow-2xl min-w-[320px]">
-          <div className="flex justify-between items-center mb-6">
-            <h4 className="text-[11px] font-black uppercase tracking-widest text-zinc-200">
+        <div className="absolute top-full mt-3 left-0 z-[100] bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700 p-8 rounded-2xl shadow-2xl min-w-[360px]">
+          <div className="flex justify-between items-center mb-8">
+            <h4 className="text-sm font-black uppercase tracking-[0.2em] text-zinc-200" style={{ fontFamily: "'Space Mono', monospace" }}>
                 {viewDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
             </h4>
-            <div className="flex gap-1">
-              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() - 1)))} className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-white">
-                <ChevronLeft size={14}/>
+            <div className="flex gap-2">
+              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() - 1)))} className="p-2 hover:bg-zinc-700 rounded-lg transition-colors text-zinc-400 hover:text-white">
+                <ChevronLeft size={16}/>
               </button>
-              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() + 1)))} className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-white">
-                <ChevronRight size={14}/>
+              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() + 1)))} className="p-2 hover:bg-zinc-700 rounded-lg transition-colors text-zinc-400 hover:text-white">
+                <ChevronRight size={16}/>
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-7 gap-1 text-center mb-3">
+          <div className="grid grid-cols-7 gap-2 text-center mb-4">
             {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-                <div key={d} className="text-[9px] font-black text-zinc-600 uppercase">{d}</div>
+                <div key={d} className="text-[10px] font-black text-zinc-600 uppercase" style={{ fontFamily: "'Space Mono', monospace" }}>{d}</div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-1">
-            {/* Padding for the start of the month */}
+          <div className="grid grid-cols-7 gap-2">
             {Array.from({ length: firstDayOfMonth(viewDate) }).map((_, i) => <div key={i} />)}
             
             {Array.from({ length: daysInMonth(viewDate) }).map((_, i) => {
@@ -129,10 +125,11 @@ export default function CalendarPicker() {
                   key={day} 
                   onClick={() => handleDateClick(day)} 
                   className={`
-                    aspect-square flex items-center justify-center text-[11px] font-bold rounded-lg transition-all
-                    ${active ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/20' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'}
-                    ${active && !isBoundary ? 'bg-cyan-500/40 text-white' : ''}
+                    aspect-square flex items-center justify-center text-sm font-bold rounded-lg transition-all
+                    ${active ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/30' : 'text-zinc-400 hover:bg-zinc-700 hover:text-white'}
+                    ${active && !isBoundary ? 'bg-cyan-500/50 text-white' : ''}
                   `}
+                  style={{ fontFamily: "'Space Mono', monospace" }}
                 >
                     {day}
                 </button>

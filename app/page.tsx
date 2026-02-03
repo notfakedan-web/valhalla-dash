@@ -120,6 +120,23 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const closers = Array.from(new Set(allRawData.map(d => d.closer))).filter(Boolean) as string[];
   const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
 
+  // Platform Breakdown for Pie Chart
+  const platformBreakdown: Record<string, number> = {};
+  performanceData.forEach(d => {
+    const platform = d.platform || 'Other';
+    platformBreakdown[platform] = (platformBreakdown[platform] || 0) + 1;
+  });
+  
+  const platformData = Object.entries(platformBreakdown)
+    .map(([name, count]) => ({
+      name,
+      count,
+      percentage: performanceData.length > 0 ? (count / performanceData.length) * 100 : 0
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  const colors = ['#06b6d4', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#6366f1', '#84cc16'];
+
   const Stat = ({ label, value }: any) => (
     <div className="bg-[#0d0d0d] border border-zinc-900 rounded-xl p-6">
       <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-3">{label}</p>
@@ -156,6 +173,76 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
           <Stat label="Avg. Cash / Call" value={`$${avgCashCall.toFixed(2)}`} />
           <Stat label="Avg. Cash / Close" value={`$${avgCashClose.toFixed(2)}`} />
+        </div>
+
+        {/* Platform Traffic Pie Chart */}
+        <div className="bg-[#0d0d0d] border border-zinc-900 rounded-2xl p-10 shadow-2xl mb-10">
+          <h3 className="text-[10px] font-black uppercase text-zinc-600 mb-12 tracking-widest text-center">Call Traffic by Platform</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+            {/* Pie Chart */}
+            <div className="flex justify-center">
+              <div className="relative w-72 h-72">
+                <svg viewBox="0 0 200 200" className="transform -rotate-90">
+                  {platformData.reduce((acc, item, i) => {
+                    const percentage = item.percentage;
+                    const prevPercentage = acc.total;
+                    const startAngle = (prevPercentage / 100) * 360;
+                    const endAngle = ((prevPercentage + percentage) / 100) * 360;
+                    
+                    const x1 = 100 + 80 * Math.cos((startAngle * Math.PI) / 180);
+                    const y1 = 100 + 80 * Math.sin((startAngle * Math.PI) / 180);
+                    const x2 = 100 + 80 * Math.cos((endAngle * Math.PI) / 180);
+                    const y2 = 100 + 80 * Math.sin((endAngle * Math.PI) / 180);
+                    
+                    const largeArc = percentage > 50 ? 1 : 0;
+                    const pathData = `M 100 100 L ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2} Z`;
+                    
+                    acc.elements.push(
+                      <path
+                        key={i}
+                        d={pathData}
+                        fill={colors[i % colors.length]}
+                        className="hover:opacity-80 transition-opacity cursor-pointer"
+                        style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.3))' }}
+                      />
+                    );
+                    
+                    acc.total += percentage;
+                    return acc;
+                  }, { elements: [] as JSX.Element[], total: 0 }).elements}
+                  
+                  {/* Center Circle */}
+                  <circle cx="100" cy="100" r="45" fill="#050505" />
+                </svg>
+                
+                {/* Center Text */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Total Calls</p>
+                  <p className="text-3xl font-black text-white">{performanceData.length}</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Legend */}
+            <div className="space-y-3">
+              {platformData.map((item, i) => (
+                <div key={i} className="flex items-center justify-between gap-4 bg-zinc-900/30 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-4 h-4 rounded-sm flex-shrink-0" 
+                      style={{ backgroundColor: colors[i % colors.length] }}
+                    />
+                    <span className="text-sm font-bold text-white">{item.name}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-white tabular-nums">{item.count}</p>
+                    <p className="text-[9px] font-black text-zinc-600">{item.percentage.toFixed(1)}%</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="bg-[#0d0d0d] border border-zinc-900 rounded-2xl p-10 shadow-2xl">

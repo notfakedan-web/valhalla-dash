@@ -13,7 +13,6 @@ export default function CalendarPicker() {
   const [viewDate, setViewDate] = useState(new Date());
   const [start, setStart] = useState<Date | null>(null);
   const [end, setEnd] = useState<Date | null>(null);
-  const [coords, setCoords] = useState({ top: 0, left: 0 });
 
   const toDateString = (date: Date) => {
     const y = date.getFullYear();
@@ -34,55 +33,32 @@ export default function CalendarPicker() {
     if (e) setEnd(fromDateString(e));
   }, [searchParams]);
 
-  // Handle positioning and outside clicks
   useEffect(() => {
-    const updatePosition = () => {
-      if (containerRef.current && isOpen) {
-        const rect = containerRef.current.getBoundingClientRect();
-        // Position it exactly 8px below the button
-        setCoords({ top: rect.bottom + 8, left: rect.left });
-      }
-    };
-
     const handleOutsideClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-          // Check if the click was on the fixed dropdown specifically
-          const dropdown = document.getElementById('calendar-dropdown-portal');
-          if (dropdown && !dropdown.contains(e.target as Node)) {
-            setIsOpen(false);
-          }
-      }
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setIsOpen(false);
     };
-
-    if (isOpen) {
-      updatePosition();
-      window.addEventListener('scroll', updatePosition);
-      window.addEventListener('resize', updatePosition);
-    }
-
     document.addEventListener('mousedown', handleOutsideClick);
-    return () => {
-      window.removeEventListener('scroll', updatePosition);
-      window.removeEventListener('resize', updatePosition);
-      document.removeEventListener('mousedown', handleOutsideClick);
-    };
-  }, [isOpen]);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   const daysInMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
 
   const handleDateClick = (day: number) => {
     const clickedDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+    
     if (!start || (start && end)) {
       setStart(clickedDate);
       setEnd(null);
     } else {
       let finalStart = start;
       let finalEnd = clickedDate;
+
       if (clickedDate < start) {
         finalStart = clickedDate;
         finalEnd = start;
       }
+
       const params = new URLSearchParams(searchParams.toString());
       params.set('start', toDateString(finalStart));
       params.set('end', toDateString(finalEnd));
@@ -100,6 +76,7 @@ export default function CalendarPicker() {
 
   return (
     <div className="relative inline-block" ref={containerRef}>
+      {/* TRIGGER BUTTON */}
       <button 
         onClick={() => setIsOpen(!isOpen)} 
         className={`flex items-center gap-3 bg-zinc-900/40 backdrop-blur-md border px-4 py-3 rounded-xl transition-all text-[11px] font-black uppercase tracking-widest min-w-[240px] ${isOpen ? 'border-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.2)] text-white' : 'border-zinc-800 text-zinc-400 hover:border-zinc-700'}`}
@@ -113,14 +90,11 @@ export default function CalendarPicker() {
         ) : "Select Date Range"}
       </button>
 
+      {/* DROPDOWN - FIXED POSITIONING TO OVERLAP EVERYTHING */}
       {isOpen && (
         <div 
-          id="calendar-dropdown-portal"
-          className="fixed bg-[#0d0d0d] border border-zinc-800 p-6 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.9)] min-w-[320px] z-[99999] animate-in fade-in zoom-in duration-150"
-          style={{ 
-            top: `${coords.top}px`, 
-            left: `${coords.left}px`,
-          }}
+          className="fixed md:absolute mt-3 bg-[#0d0d0d] border border-zinc-800 p-6 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.8)] min-w-[320px] z-[9999] animate-in fade-in zoom-in duration-200"
+          style={{ top: containerRef.current?.getBoundingClientRect().bottom }}
         >
           <div className="flex justify-between items-center mb-6">
             <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-cyan-400">
@@ -144,23 +118,31 @@ export default function CalendarPicker() {
 
           <div className="grid grid-cols-7 gap-1">
             {Array.from({ length: firstDayOfMonth(viewDate) }).map((_, i) => <div key={i} />)}
+            
             {Array.from({ length: daysInMonth(viewDate) }).map((_, i) => {
               const day = i + 1;
               const active = isInRange(day);
               const dObj = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
               const isStart = start && dObj.getTime() === start.getTime();
               const isEnd = end && dObj.getTime() === end.getTime();
+              
               return (
                 <button 
                   key={day} 
                   onClick={() => handleDateClick(day)} 
-                  className={`aspect-square flex items-center justify-center text-[11px] font-black rounded-lg transition-all relative ${active ? 'text-white' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'} ${isStart || isEnd ? 'bg-cyan-500 shadow-[0_0_20px_rgba(34,211,238,0.5)] z-10' : ''} ${active && !isStart && !isEnd ? 'bg-cyan-500/10 text-cyan-400' : ''}`}
+                  className={`
+                    aspect-square flex items-center justify-center text-[11px] font-black rounded-lg transition-all relative
+                    ${active ? 'text-white' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'}
+                    ${isStart || isEnd ? 'bg-cyan-500 shadow-[0_0_20px_rgba(34,211,238,0.5)] z-10' : ''}
+                    ${active && !isStart && !isEnd ? 'bg-cyan-500/10 text-cyan-400' : ''}
+                  `}
                 >
                     {day}
                 </button>
               );
             })}
           </div>
+          
           <div className="mt-6 pt-4 border-t border-zinc-800 flex justify-end">
              <button onClick={() => setIsOpen(false)} className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">Apply Range</button>
           </div>

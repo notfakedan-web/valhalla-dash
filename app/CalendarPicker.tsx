@@ -75,14 +75,14 @@ export default function CalendarPicker() {
   };
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative inline-block" ref={containerRef} style={{ zIndex: 100 }}>
       <button 
         onClick={() => setIsOpen(!isOpen)} 
-        className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 px-4 py-3 rounded-lg hover:border-zinc-700 transition-all text-sm font-medium text-zinc-300 min-w-[220px]"
+        className="flex items-center gap-3 bg-zinc-900/50 backdrop-blur-md border border-zinc-800 px-4 py-3 rounded-xl hover:border-cyan-500/50 transition-all text-xs font-bold uppercase tracking-widest text-zinc-400 min-w-[240px]"
       >
-        <CalendarIcon size={14} className="text-zinc-600" />
+        <CalendarIcon size={14} className={start ? "text-cyan-400" : "text-zinc-600"} />
         {start ? (
-            <span>
+            <span className="text-zinc-200">
                 {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 {end ? ` - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ' ...'}
             </span>
@@ -90,28 +90,28 @@ export default function CalendarPicker() {
       </button>
 
       {isOpen && (
-        <div className="absolute top-full mt-2 left-0 z-[100] bg-zinc-900 border border-zinc-800 p-6 rounded-xl shadow-2xl min-w-[340px]">
+        <div className="absolute top-full mt-3 left-0 bg-[#0d0d0d] border border-zinc-800 p-6 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] min-w-[320px] z-[110]">
           <div className="flex justify-between items-center mb-6">
-            <h4 className="text-sm font-bold uppercase tracking-wide text-zinc-200">
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-400">
                 {viewDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
             </h4>
             <div className="flex gap-1">
-              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() - 1)))} className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-500 hover:text-white">
-                <ChevronLeft size={14}/>
+              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() - 1)))} className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-500 hover:text-white">
+                <ChevronLeft size={16}/>
               </button>
-              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() + 1)))} className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-500 hover:text-white">
-                <ChevronRight size={14}/>
+              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() + 1)))} className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-500 hover:text-white">
+                <ChevronRight size={16}/>
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-7 gap-2 text-center mb-3">
+          <div className="grid grid-cols-7 gap-1 text-center mb-4">
             {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-                <div key={d} className="text-[10px] font-bold text-zinc-600 uppercase">{d}</div>
+                <div key={d} className="text-[9px] font-black text-zinc-700 uppercase">{d}</div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-1">
             {Array.from({ length: firstDayOfMonth(viewDate) }).map((_, i) => <div key={i} />)}
             
             {Array.from({ length: daysInMonth(viewDate) }).map((_, i) => {
@@ -124,15 +124,19 @@ export default function CalendarPicker() {
                   key={day} 
                   onClick={() => handleDateClick(day)} 
                   className={`
-                    aspect-square flex items-center justify-center text-sm font-medium rounded-lg transition-all
-                    ${active ? 'bg-green-500 text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'}
-                    ${active && !isBoundary ? 'bg-green-500/40 text-white' : ''}
+                    aspect-square flex items-center justify-center text-[11px] font-black rounded-lg transition-all
+                    ${active ? 'bg-cyan-500 text-black shadow-[0_0_15px_rgba(34,211,238,0.4)]' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'}
+                    ${active && !isBoundary ? 'bg-cyan-500/20 text-cyan-400 shadow-none' : ''}
                   `}
                 >
                     {day}
                 </button>
               );
             })}
+          </div>
+          
+          <div className="mt-6 pt-4 border-t border-zinc-800 flex justify-end">
+             <button onClick={() => setIsOpen(false)} className="text-[9px] font-black uppercase tracking-widest text-zinc-600 hover:text-white transition-colors">Close</button>
           </div>
         </div>
       )}

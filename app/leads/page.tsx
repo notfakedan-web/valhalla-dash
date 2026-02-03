@@ -30,6 +30,7 @@ async function getLeadsData() {
       
       const rawDate = getVal('submitted at') || getVal('date') || '';
       let parsedDate = new Date(rawDate);
+      // Handle DD/MM/YYYY vs MM/DD/YYYY formats if standard parsing fails
       if (isNaN(parsedDate.getTime()) && rawDate.includes('/')) {
         const parts = rawDate.split(' ')[0].split('/');
         if (parts.length === 3) {
@@ -54,15 +55,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   const allLeads = await getLeadsData();
 
-  // DATE RANGE LOGIC (Fixing the glitch)
+  // DATE RANGE LOGIC
   const start = params.start ? new Date(params.start) : null;
   const end = params.end ? new Date(params.end) : null;
-  // Crucial: Set end date to the very end of that day to capture leads
   if (end) end.setHours(23, 59, 59, 999);
 
   // 1. FILTER LOGIC
   const filtered = allLeads.filter(d => {
-    // Use the 'start' and 'end' variables defined above, NOT new Date(params.end) which defaults to 00:00
     if (start && d.isoDate && d.isoDate < start) return false;
     if (end && d.isoDate && d.isoDate > end) return false;
     if (params.platform && d.source !== params.platform) return false;
@@ -79,7 +78,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   // 3. CHART DATA PREP
   const dailyCounts: Record<string, number> = {};
   
-  // Fill missing dates for smoother graph if range selected
+  // Pre-fill dates for smooth graph
   if (start && end) {
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
           const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -107,7 +106,12 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   });
   const cashBrackets = Object.entries(cashMap).sort((a, b) => b[1] - a[1]);
 
-  const qualifiedLeads = filtered.filter(l => l.cashOnHand.includes('10k') || l.cashOnHand.includes('5k')).length;
+  // FIXED LOGIC: Case-insensitive check for High Ticket Brackets
+  const qualifiedLeads = filtered.filter(l => {
+      const val = l.cashOnHand.toLowerCase();
+      // Matches "3k-5k", "5k-10k", "10k+"
+      return val.includes('3k') || val.includes('5k') || val.includes('10k');
+  }).length;
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-cyan-500/30">
@@ -124,27 +128,31 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                 <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Lead Flow <span className="text-cyan-500">Vault</span></h1>
             </div>
             
-            <div className="flex items-center gap-4">
-                <a href="/" className="px-5 py-2.5 rounded-full bg-zinc-900 border border-zinc-800 text-xs font-bold uppercase tracking-widest hover:bg-zinc-800 transition-all text-center">Back to OS</a>
-                <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-2 pl-6 rounded-2xl flex flex-wrap items-center gap-4">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
-                    <Filters platforms={Array.from(new Set(allLeads.map(d => d.source)))} closers={[]} setters={[]} />
-                </div>
+            {/* Filter Container - Sizing matched to Home */}
+            <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-2 pl-6 rounded-2xl flex flex-wrap items-center gap-4">
+                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
+                <Filters 
+                    platforms={Array.from(new Set(allLeads.map(d => d.source)))} 
+                    closers={[]} 
+                    setters={[]} 
+                    resetPath="/leads" // Fixes the reset button behavior
+                />
             </div>
         </div>
 
         {/* LAYOUT GRID */}
         <div className="space-y-6 relative z-10">
             
-            {/* KPI ROW - 4 Columns for better proportions */}
+            {/* KPI ROW */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 
-                {/* Total Leads Card - More Compact */}
+                {/* Total Leads Card */}
                 <div className="relative group overflow-hidden bg-gradient-to-br from-cyan-600 to-blue-700 p-6 rounded-3xl shadow-2xl shadow-cyan-900/20">
                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
                         <svg width="60" height="60" viewBox="0 0 24 24" fill="white"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
                     </div>
-                    <p className="text-[10px] font-black text-white/60 uppercase mb-1 tracking-widest">Total Acquisitions</p>
+                    {/* UPDATED LABEL */}
+                    <p className="text-[10px] font-black text-white/60 uppercase mb-1 tracking-widest">Total Leads</p>
                     <h2 className="text-4xl font-black text-white tracking-tighter tabular-nums">{filtered.length}</h2>
                     <div className="mt-3 flex items-center gap-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
@@ -158,14 +166,14 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     <h3 className="text-4xl font-black text-white tracking-tighter italic tabular-nums">{qualifiedLeads}</h3>
                 </div>
 
-                {/* Placeholder / Empty Slots for future metrics or just spacing */}
-                <div className="lg:col-span-2 hidden lg:block"></div> 
+                {/* Spacers for 4-col grid */}
+                <div className="hidden lg:block lg:col-span-2"></div>
             </div>
 
             {/* CHART ROW */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* LINE CHART (2/3 width) */}
+                {/* LINE CHART */}
                 <div className="lg:col-span-2 bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8 shadow-inner relative overflow-hidden">
                     <div className="flex items-center justify-between mb-8 relative z-10">
                         <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Growth Velocity</h3>
@@ -173,7 +181,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     </div>
                     
                     <div className="h-[250px] w-full relative pt-4 pl-4">
-                        {/* Y-Axis Grid Lines & Labels */}
                         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
                             {[1, 0.75, 0.5, 0.25, 0].map(step => (
                                 <div key={step} className="w-full border-t border-zinc-800/30 relative">
@@ -184,27 +191,19 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                             ))}
                         </div>
 
-                        {/* Chart Area */}
                         {timeTrend.length > 0 ? (
                           <>
                             <div className="absolute inset-0 flex items-end justify-between px-2 pb-6 z-10">
                                 {timeTrend.map(([date, count], i) => (
                                     <div key={i} className="flex-1 flex flex-col justify-end group items-center relative h-full">
-                                        {/* Hover Bar */}
                                         <div className="absolute inset-0 bg-cyan-500/0 group-hover:bg-cyan-500/5 transition-colors rounded-t-sm" />
-                                        
-                                        {/* The Point/Bar */}
                                         <div 
                                             className="w-full bg-cyan-500/20 group-hover:bg-cyan-500 transition-all rounded-t-sm relative min-w-[4px] max-w-[20px]" 
                                             style={{ height: `${(count / maxDayLeads) * 100}%` }} 
                                         />
-                                        
-                                        {/* Tooltip */}
                                         <div className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-800 text-white text-[9px] font-bold px-2 py-1 rounded shadow-lg z-20 whitespace-nowrap pointer-events-none">
                                             {date}: {count} Leads
                                         </div>
-
-                                        {/* X-Axis Label (Only show some to avoid crowding) */}
                                         <span className="absolute -bottom-6 text-[8px] font-bold text-zinc-600 uppercase hidden group-hover:block whitespace-nowrap">
                                             {date}
                                         </span>
@@ -218,13 +217,12 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                             </div>
                         )}
                         
-                        {/* Axis Titles */}
                         <div className="absolute -left-6 bottom-1/2 transform -rotate-90 origin-left text-[8px] font-black uppercase tracking-widest text-zinc-700">Volume (Leads)</div>
                         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest text-zinc-700">Timeline (Date)</div>
                     </div>
                 </div>
 
-                {/* INVESTMENT PROFILES (1/3 width) */}
+                {/* INVESTMENT PROFILES */}
                 <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
                     <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Investment Profiles</h3>
                     <div className="space-y-4">

@@ -3,177 +3,122 @@ export const dynamic = 'force-dynamic';
 import React from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
-import { TrendingUp, Users, Filter, DollarSign, AlertTriangle } from 'lucide-react';
-import DateRangePicker from './DateRangePicker';
+import Filters from './Filters';
 
 async function getSheetData() {
-  // 1. PULL VARIABLES
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const key = process.env.GOOGLE_PRIVATE_KEY;
-  const id = process.env.SHEET_ID;
-
-  // 2. PRE-FLIGHT CHECK (This will show in your Vercel Logs)
-  if (!email || !key || !id) {
-    console.error("MISSING VARS:", { email: !!email, key: !!key, id: !!id });
-    return { error: "Missing Environment Variables", details: `Missing: ${!email ? 'Email ' : ''}${!key ? 'Key ' : ''}${!id ? 'SheetID' : ''}` };
-  }
-
   try {
     const serviceAccountAuth = new JWT({
-      email: email,
-      // Aggressive newline replacement to handle Vercel formatting
-      key: key.replace(/\\n/g, '\n').replace(/"/g, ''), 
+      email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    const doc = new GoogleSpreadsheet(id, serviceAccountAuth);
+    const doc = new GoogleSpreadsheet(process.env.SHEET_ID!, serviceAccountAuth);
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
     const rows = await sheet.getRows();
 
-    const data = rows.map(row => {
+    return rows.map(row => {
       const getVal = (search: string) => {
           const foundKey = sheet.headerValues.find(h => h.toLowerCase().includes(search.toLowerCase()));
-          return foundKey ? row.get(foundKey) : undefined;
+          return foundKey ? row.get(foundKey) : '';
       };
-
-      const rawCash = getVal('Cash Collected') || '0';
       return {
         date: getVal('Date Call Was Taken') || '',
         closer: getVal('Closer Name') || 'N/A',
         setter: getVal('Setter Name') || 'N/A',
-        prospect: getVal('Prospect Name') || 'N/A',
         outcome: getVal('Call Outcome') || 'N/A',
-        cash: parseFloat(rawCash.toString().replace(/[$, ]/g, '')) || 0,
-        platform: getVal('platform') || 'Organic',
+        platform: getVal('What platform did') || 'Other',
+        cash: parseFloat(getVal('Cash Collected')?.toString().replace(/[$, ]/g, '')) || 0,
+        revenue: parseFloat(getVal('Revenue Generated')?.toString().replace(/[$, ]/g, '')) || 0,
       };
     });
-
-    return { data };
-  } catch (error: any) {
-    console.error('--- GOOGLE API ERROR ---', error);
-    return { error: "Google API Connection Failed", details: error.message };
+  } catch (error) {
+    console.error(error); return [];
   }
 }
 
-export default async function ValhallaDashboard({
-  searchParams,
-}: {
-  searchParams: Promise<{ start?: string; end?: string }>;
-}) {
-  const { start, end } = await searchParams;
-  const result = await getSheetData();
+export default async function ValhallaDashboard({ searchParams }: { searchParams: Promise<any> }) {
+  const params = await searchParams;
+  const allData = await getSheetData();
 
-  // ERROR SCREEN
-  if (result.error) {
-    return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-10 font-sans">
-        <AlertTriangle className="text-red-500 mb-4" size={64} />
-        <h1 className="text-3xl font-black tracking-tighter uppercase">{result.error}</h1>
-        <p className="text-zinc-500 mt-4 max-w-md text-center font-mono text-sm bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-          {result.details}
-        </p>
-        <button onClick={() => window.location.reload()} className="mt-8 bg-white text-black px-8 py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-cyan-400 transition-all">
-          Retry Connection
-        </button>
-      </div>
-    );
-  }
+  const platforms = Array.from(new Set(allData.map(d => d.platform))).filter(Boolean) as string[];
+  const closers = Array.from(new Set(allData.map(d => d.closer))).filter(Boolean) as string[];
+  const setters = Array.from(new Set(allData.map(d => d.setter))).filter(Boolean) as string[];
 
-  const allRawData = result.data || [];
-
-  // FILTER LOGIC
-  const filteredData = allRawData.filter((item) => {
-    if (!item.date) return false;
-    const itemDate = new Date(item.date);
-    if (isNaN(itemDate.getTime())) return true; 
-    if (start) {
-      const startDate = new Date(start);
-      if (itemDate < startDate) return false;
-    }
-    if (end) {
-      const endDate = new Date(end);
-      endDate.setHours(23, 59, 59, 999);
-      if (itemDate > endDate) return false;
-    }
+  const filtered = allData.filter(d => {
+    if (params.start && new Date(d.date) < new Date(params.start)) return false;
+    if (params.end && new Date(d.date) > new Date(params.end)) return false;
+    if (params.platform && d.platform !== params.platform) return false;
+    if (params.closer && d.closer !== params.closer) return false;
+    if (params.setter && d.setter !== params.setter) return false;
     return true;
   });
 
-  const totalCash = filteredData.reduce((acc, curr) => acc + curr.cash, 0);
-  const successWords = ['Closed', 'Collected', 'MRR', 'Full Pay', 'Deposit', 'Paid'];
-  const closedCount = filteredData.filter(d => 
-    successWords.some(word => d.outcome.toLowerCase().includes(word.toLowerCase()))
-  ).length;
-  const closeRate = filteredData.length > 0 ? ((closedCount / filteredData.length) * 100).toFixed(1) : "0";
+  const totalCash = filtered.reduce((a, b) => a + b.cash, 0);
+  const totalRev = filtered.reduce((a, b) => a + b.revenue, 0);
+  const callsTaken = filtered.filter(d => !d.outcome.toLowerCase().includes('no show')).length;
+  const callsClosed = filtered.filter(d => ['closed', 'paid', 'full pay', 'mrr'].some(x => d.outcome.toLowerCase().includes(x))).length;
+
+  const dailyMap: Record<string, number> = {};
+  filtered.forEach(d => {
+    const day = d.date ? new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'N/A';
+    dailyMap[day] = (dailyMap[day] || 0) + d.cash;
+  });
+  const trend = Object.entries(dailyMap).slice(-25);
+
+  const Stat = ({ label, value, sub, large }: any) => (
+    <div className={`bg-[#0d0d0d] border border-zinc-900 rounded-xl p-6 ${large ? 'col-span-1 lg:col-span-2' : ''}`}>
+      <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-3">{label}</p>
+      <div className="flex items-baseline gap-2">
+        <h2 className={`${large ? 'text-2xl' : 'text-lg'} font-black text-white tracking-tighter`}>{value}</h2>
+        {sub && <span className="text-[9px] font-bold text-green-500">+{sub}%</span>}
+      </div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white p-6 md:p-12 font-sans">
-      <div className="max-w-7xl mx-auto">
-        <header className="flex flex-col lg:flex-row lg:items-center justify-between mb-12 gap-8 border-b border-zinc-900 pb-10">
-          <div>
-            <h1 className="text-5xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600">
-              VALHALLA DASHBOARD
-            </h1>
-            <p className="text-zinc-600 mt-2 uppercase text-[10px] tracking-[0.4em] font-bold flex items-center gap-3">
-               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-               Live Performance Feed • {allRawData.length} Total Rows
-            </p>
-          </div>
-          <DateRangePicker />
-        </header>
+    <div className="min-h-screen bg-black text-white p-10 font-sans selection:bg-cyan-500/30">
+      <div className="max-w-[1600px] mx-auto">
+        <h1 className="text-xl font-black uppercase tracking-widest mb-10 text-center">Dashboard</h1>
+        <Filters platforms={platforms} closers={closers} setters={setters} />
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-          <div className="bg-cyan-600 p-8 rounded-[2.5rem] border border-white/5">
-            <p className="text-[10px] font-black tracking-[0.2em] opacity-60 mb-2 uppercase">TOTAL CASH</p>
-            <h2 className="text-4xl font-bold tracking-tighter">${totalCash.toLocaleString()}</h2>
-          </div>
-          <div className="bg-zinc-900/50 p-8 rounded-[2.5rem] border border-white/5">
-            <p className="text-[10px] font-black tracking-[0.2em] opacity-40 mb-2 uppercase">CLOSE RATE</p>
-            <h2 className="text-4xl font-bold tracking-tighter">{closeRate}%</h2>
-          </div>
-          <div className="bg-zinc-900/50 p-8 rounded-[2.5rem] border border-white/5">
-            <p className="text-[10px] font-black tracking-[0.2em] opacity-40 mb-2 uppercase">TOTAL CALLS</p>
-            <h2 className="text-4xl font-bold tracking-tighter">{filteredData.length}</h2>
-          </div>
-          <div className="bg-zinc-900/50 p-8 rounded-[2.5rem] border border-white/5">
-            <p className="text-[10px] font-black tracking-[0.2em] opacity-40 mb-2 uppercase">SESSIONS</p>
-            <h2 className="text-4xl font-bold tracking-tighter">{allRawData.length}</h2>
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
+           <div className="lg:col-span-2 bg-cyan-600 rounded-xl p-8 shadow-xl shadow-cyan-950/20">
+              <p className="text-[9px] font-black text-white/50 uppercase tracking-[0.2em] mb-2">Cash Collected</p>
+              <h2 className="text-3xl font-black tabular-nums">${totalCash.toLocaleString()}</h2>
+           </div>
+           <div className="lg:col-span-2 bg-zinc-900/30 rounded-xl p-8 border border-zinc-800">
+              <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-2">Revenue Generated</p>
+              <h2 className="text-3xl font-black tabular-nums">${totalRev.toLocaleString()}</h2>
+           </div>
         </div>
 
-        <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[3rem] overflow-hidden backdrop-blur-xl">
-          <div className="p-10 border-b border-zinc-800/50 flex justify-between items-center bg-zinc-900/40">
-            <h3 className="font-black uppercase tracking-[0.3em] text-[10px] text-zinc-500 flex items-center gap-3 font-mono">
-               Data Log Output
-            </h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-zinc-600 text-[10px] font-black tracking-[0.2em] uppercase border-b border-zinc-800/20 font-mono">
-                  <th className="p-8">Date</th>
-                  <th className="p-8">Closer</th>
-                  <th className="p-8">Outcome</th>
-                  <th className="p-8 text-right">Cash</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800/20">
-                {filteredData.slice().reverse().map((row, i) => (
-                  <tr key={i} className="hover:bg-white/[0.02] transition-colors group">
-                    <td className="p-8 text-zinc-500 font-mono text-[11px]">{row.date}</td>
-                    <td className="p-8 font-bold text-white tracking-tight">{row.closer}</td>
-                    <td className="p-8">
-                      <span className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border bg-zinc-800 text-zinc-400 border-zinc-700">
-                        {row.outcome}
-                      </span>
-                    </td>
-                    <td className="p-8 text-right font-mono font-bold text-cyan-400">
-                      ${row.cash.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+          <Stat label="Show Rate" value={`${filtered.length > 0 ? ((callsTaken/filtered.length)*100).toFixed(1) : 0}%`} />
+          <Stat label="Close Rate" value={`${callsTaken > 0 ? ((callsClosed/callsTaken)*100).toFixed(1) : 0}%`} />
+          <Stat label="Calls Due" value={filtered.length} />
+          <Stat label="Calls Taken" value={callsTaken} />
+          <Stat label="Calls Closed" value={callsClosed} />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+          <Stat label="Avg. Cash / Call" value={`$${callsTaken > 0 ? (totalCash/callsTaken).toFixed(2) : 0}`} />
+          <Stat label="Avg. Cash / Close" value={`$${callsClosed > 0 ? (totalCash/callsClosed).toFixed(2) : 0}`} />
+        </div>
+
+        <div className="bg-[#0d0d0d] border border-zinc-900 rounded-2xl p-10">
+          <h3 className="text-[10px] font-black uppercase text-zinc-600 tracking-widest mb-12">Cash Collected Trend</h3>
+          <div className="h-[350px] flex items-end gap-3 px-4">
+            {trend.map(([date, cash], i) => (
+              <div key={i} className="flex-1 flex flex-col items-center gap-4 group">
+                <div className="relative w-full">
+                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-[9px] font-black text-cyan-400">${(cash/1000).toFixed(1)}K</div>
+                  <div className="w-full bg-cyan-500 rounded-sm transition-all hover:bg-cyan-400" style={{ height: `${Math.max(4, (cash / (totalCash||1)) * 1200)}px` }} />
+                </div>
+                <span className="text-[8px] font-black text-zinc-700 uppercase whitespace-nowrap">{date}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>

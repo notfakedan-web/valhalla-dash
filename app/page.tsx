@@ -46,13 +46,13 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const params = await searchParams;
   const allRawData = await getSheetData();
 
-  // 1. Determine Date Range (Default to today if empty, or min/max of data)
+  // 1. DATE RANGE LOGIC
   const today = new Date();
   const start = params.start ? new Date(params.start) : null;
   const end = params.end ? new Date(params.end) : null;
   if (end) end.setHours(23, 59, 59, 999);
 
-  // 2. Filter Data
+  // 2. MAIN FILTERING
   const performanceData = allRawData.filter(d => {
     if (!d.date) return false;
     const dDate = new Date(d.date);
@@ -74,6 +74,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 
   const totalRev = appointments.reduce((acc, curr) => acc + curr.revenue, 0);
 
+  const callsDue = appointments.length;
   const callsTaken = appointments.filter(d => 
     !['no show', 'rescheduled', 'cancelled'].some(x => d.outcome.toLowerCase().includes(x))
   ).length;
@@ -82,15 +83,16 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
     ['closed', 'deposit collected', 'paid', 'full pay'].some(x => d.outcome.toLowerCase().includes(x))
   ).length;
   
-  const showRate = appointments.length > 0 ? (callsTaken / appointments.length) * 100 : 0;
+  const showRate = callsDue > 0 ? (callsTaken / callsDue) * 100 : 0;
   const closeRate = callsTaken > 0 ? (callsClosed / callsTaken) * 100 : 0;
+  
+  const avgCashAppt = callsDue > 0 ? totalCash / callsDue : 0;
+  const avgCashClose = callsClosed > 0 ? totalCash / callsClosed : 0;
 
-  // 3. GRAPH LOGIC: Fill in missing dates
-  // Find the visual range for the graph
+  // 3. GRAPH LOGIC
   let graphStart = start;
   let graphEnd = end;
 
-  // If no filters, find min/max from data to define the range
   if (!graphStart && performanceData.length > 0) {
       const times = performanceData.map(d => new Date(d.date).getTime());
       graphStart = new Date(Math.min(...times));
@@ -99,17 +101,15 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
       const times = performanceData.map(d => new Date(d.date).getTime());
       graphEnd = new Date(Math.max(...times));
   }
-  // Fallback if no data and no filter
   if (!graphStart) graphStart = new Date(today.getFullYear(), today.getMonth(), 1);
   if (!graphEnd) graphEnd = today;
 
-  // Generate map of all days in range initialized to 0
   const dayMap = new Map<string, number>();
   for (let d = new Date(graphStart); d <= graphEnd; d.setDate(d.getDate() + 1)) {
-      dayMap.set(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 0);
+      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      dayMap.set(label, 0);
   }
 
-  // Fill with actual data
   performanceData.forEach(d => {
     const day = new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     if (dayMap.has(day)) {
@@ -117,20 +117,19 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
     }
   });
 
-  // Convert to array
   const trend = Array.from(dayMap.entries());
   const maxCash = Math.max(...trend.map(([_, c]) => c), 1);
 
-  // Filters Options
+  // 4. FILTER OPTIONS
   const platforms = Array.from(new Set(allRawData.map(d => d.platform))).filter(Boolean) as string[];
   const closers = Array.from(new Set(allRawData.map(d => d.closer))).filter(Boolean) as string[];
   const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
 
   return (
-    <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-cyan-500/30">
-      <div className="max-w-[1600px] mx-auto p-6 md:p-10">
+    <div className="min-h-screen p-6 md:p-10">
+      <div className="max-w-[1600px] mx-auto">
         
-        {/* TOP BAR */}
+        {/* HEADER */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12 relative z-[100]">
             <div>
                 <div className="flex items-center gap-2 mb-2">
@@ -146,21 +145,21 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
             </div>
         </div>
 
-        {/* LAYOUT GRID */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 relative">
+        {/* LAYOUT GRID: 12 Columns for better spacing control */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative">
             
-            {/* SIDEBAR FILTERS (1/5 width) */}
-            <div className="lg:col-span-1 space-y-6 relative z-[60]">
-                <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-6 rounded-3xl h-full">
-                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-6 tracking-widest text-center">Revenue Filter</p>
+            {/* SIDEBAR FILTERS (3 Columns - Wider than before) */}
+            <div className="lg:col-span-3 space-y-6 relative z-[60]">
+                <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-6 rounded-3xl h-full sticky top-6">
+                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-6 tracking-widest text-center border-b border-zinc-800/50 pb-4">Revenue Filter</p>
                     <Filters platforms={platforms} closers={closers} setters={setters} />
                 </div>
             </div>
 
-            {/* MAIN CONTENT (4/5 width) */}
-            <div className="lg:col-span-4 space-y-6 relative z-10">
+            {/* MAIN DASHBOARD (9 Columns) */}
+            <div className="lg:col-span-9 space-y-6 relative z-10">
                 
-                {/* PRIMARY FINANCIAL ROW */}
+                {/* KPI CARDS */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="relative group overflow-hidden bg-gradient-to-br from-cyan-600 to-blue-700 p-8 rounded-3xl shadow-2xl shadow-cyan-900/20">
                         <p className="text-xs font-black text-white/60 uppercase mb-1 tracking-widest">Net Cash Collected</p>
@@ -177,7 +176,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     </div>
                 </div>
 
-                {/* METRICS ROW */}
+                {/* METRICS STRIP */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-white" />
                     <StatBox label="Close Rate" value={`${closeRate.toFixed(1)}%`} color="text-white" />
@@ -185,7 +184,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     <StatBox label="Acquisitions" value={callsClosed} color="text-cyan-500" />
                 </div>
 
-                {/* CASH FLOW VELOCITY */}
+                {/* CASH VELOCITY GRAPH */}
                 <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8 shadow-inner relative overflow-hidden">
                     <div className="flex items-center justify-between mb-10 relative z-10">
                         <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Velocity</h3>
@@ -214,7 +213,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                                                 ${cash.toLocaleString()}
                                             </div>
                                             <div 
-                                                className={`w-full rounded-t-sm transition-all shadow-[0_0_20px_rgba(34,211,238,0.1)] ${cash > 0 ? 'bg-gradient-to-t from-cyan-600 to-cyan-400 group-hover:from-cyan-400 group-hover:to-cyan-300' : 'bg-zinc-800/50'}`}
+                                                className={`w-full rounded-t-sm transition-all shadow-[0_0_20px_rgba(34,211,238,0.1)] ${cash > 0 ? 'bg-gradient-to-t from-cyan-600 to-cyan-400 group-hover:from-cyan-400 group-hover:to-cyan-300' : 'bg-zinc-800/30'}`}
                                                 style={{ height: `${cash > 0 ? height : 4}px` }} 
                                             />
                                         </div>
@@ -226,8 +225,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                             })}
                         </div>
                     </div>
-                    
-                    {/* Axis Labels */}
                     <div className="absolute left-8 bottom-12 transform -rotate-90 origin-left text-[8px] font-black uppercase tracking-widest text-zinc-700">Price (USD)</div>
                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest text-zinc-700">Timeline (Date)</div>
                 </div>
@@ -237,8 +234,8 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
                         <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6 text-center">Efficiency Analytics</h3>
                         <div className="space-y-4">
-                            <EfficiencyRow label="Avg. Cash / Call" value={((totalCash / (callsTaken || 1))).toFixed(0)} />
-                            <EfficiencyRow label="Avg. Cash / Close" value={((totalCash / (callsClosed || 1))).toFixed(0)} />
+                            <EfficiencyRow label="Avg. Value / Appt" value={((avgCashAppt)).toFixed(0)} />
+                            <EfficiencyRow label="Avg. Cash / Close" value={((avgCashClose)).toFixed(0)} />
                         </div>
                     </div>
 

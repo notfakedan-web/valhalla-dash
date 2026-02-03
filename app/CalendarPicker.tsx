@@ -78,10 +78,9 @@ export default function CalendarPicker() {
     <div className="relative" ref={containerRef}>
       <button 
         onClick={() => setIsOpen(!isOpen)} 
-        className="flex items-center gap-4 bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700 px-5 py-3.5 rounded-xl hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/20 transition-all text-sm font-bold text-zinc-300 min-w-[240px]"
-        style={{ fontFamily: "'Outfit', sans-serif" }}
+        className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 px-4 py-3 rounded-lg hover:border-zinc-700 transition-all text-sm font-medium text-zinc-300 min-w-[220px]"
       >
-        <CalendarIcon size={16} className="text-zinc-500" />
+        <CalendarIcon size={14} className="text-zinc-600" />
         {start ? (
             <span>
                 {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -91,24 +90,24 @@ export default function CalendarPicker() {
       </button>
 
       {isOpen && (
-        <div className="absolute top-full mt-3 left-0 z-[100] bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700 p-8 rounded-2xl shadow-2xl min-w-[360px]">
-          <div className="flex justify-between items-center mb-8">
-            <h4 className="text-sm font-black uppercase tracking-[0.2em] text-zinc-200" style={{ fontFamily: "'Space Mono', monospace" }}>
+        <div className="absolute top-full mt-2 left-0 z-[100] bg-zinc-900 border border-zinc-800 p-6 rounded-xl shadow-2xl min-w-[340px]">
+          <div className="flex justify-between items-center mb-6">
+            <h4 className="text-sm font-bold uppercase tracking-wide text-zinc-200">
                 {viewDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
             </h4>
-            <div className="flex gap-2">
-              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() - 1)))} className="p-2 hover:bg-zinc-700 rounded-lg transition-colors text-zinc-400 hover:text-white">
-                <ChevronLeft size={16}/>
+            <div className="flex gap-1">
+              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() - 1)))} className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-500 hover:text-white">
+                <ChevronLeft size={14}/>
               </button>
-              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() + 1)))} className="p-2 hover:bg-zinc-700 rounded-lg transition-colors text-zinc-400 hover:text-white">
-                <ChevronRight size={16}/>
+              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() + 1)))} className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-500 hover:text-white">
+                <ChevronRight size={14}/>
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-7 gap-2 text-center mb-4">
+          <div className="grid grid-cols-7 gap-2 text-center mb-3">
             {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-                <div key={d} className="text-[10px] font-black text-zinc-600 uppercase" style={{ fontFamily: "'Space Mono', monospace" }}>{d}</div>
+                <div key={d} className="text-[10px] font-bold text-zinc-600 uppercase">{d}</div>
             ))}
           </div>
 
@@ -125,11 +124,10 @@ export default function CalendarPicker() {
                   key={day} 
                   onClick={() => handleDateClick(day)} 
                   className={`
-                    aspect-square flex items-center justify-center text-sm font-bold rounded-lg transition-all
-                    ${active ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/30' : 'text-zinc-400 hover:bg-zinc-700 hover:text-white'}
-                    ${active && !isBoundary ? 'bg-cyan-500/50 text-white' : ''}
+                    aspect-square flex items-center justify-center text-sm font-medium rounded-lg transition-all
+                    ${active ? 'bg-green-500 text-white shadow-lg' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'}
+                    ${active && !isBoundary ? 'bg-green-500/40 text-white' : ''}
                   `}
-                  style={{ fontFamily: "'Space Mono', monospace" }}
                 >
                     {day}
                 </button>

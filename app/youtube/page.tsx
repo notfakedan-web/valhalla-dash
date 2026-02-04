@@ -228,13 +228,10 @@ const UtmBuilderSection = () => {
 
 export default async function YouTubePage({ searchParams }: { searchParams: Promise<any> }) {
   const params = await searchParams;
-  // Destructure stats and filters from the new return structure
   const { stats, filters } = await getYouTubeAttribution();
 
-  // Basic filtering logic (can be expanded)
   const filteredStats = stats.filter(video => {
-      if (params.platform && video.id.includes(params.platform)) return false; // Very basic example filter
-      // Add more complex filtering logic here if needed based on how you want to filter videos vs leads
+      // Add any specific video filtering logic here if needed
       return true;
   });
 
@@ -268,7 +265,6 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400">Video ROI Intelligence</h3>
              </div>
              
-             {/* ADDED FILTERS HERE */}
              <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg flex items-center gap-4 shadow-sm">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
                 <Filters platforms={filters.platforms} closers={filters.closers} setters={filters.setters} />
@@ -300,26 +296,26 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                             </div>
                         </div>
 
-                        {/* REORDERED METRICS GRID (Logical Funnel Flow) */}
+                        {/* REORDERED METRICS GRID: Leads -> Qualified -> Cash -> Revenue */}
                         <div className="p-5 grid grid-cols-2 gap-y-4 gap-x-4 text-xs">
                             
-                            {/* Row 1: Volume (Leads -> Qualified) */}
+                            {/* Row 1: Top Funnel */}
                             <MetricRow label="Total Leads" value={video.leads} color="text-zinc-300" icon={<Users size={10} />} />
                             <MetricRow label="Qualified Leads" value={video.qualified} color="text-white" icon={<Filter size={10} />} />
 
-                            {/* Row 2: Calls (Booked -> Taken) */}
-                            <MetricRow label="Booked Calls" value={video.calls} color="text-zinc-300" icon={<Phone size={10} />} />
-                            <MetricRow label="Taken Calls" value={video.taken} color="text-white" icon={<checkCircle2 size={10} />} />
-
-                            {/* Row 3: Money (Cash -> Revenue) */}
+                            {/* Row 2: Money */}
                             <MetricRow label="Cash Collected" value={`$${video.cash.toLocaleString()}`} color="text-emerald-400" icon={<DollarSign size={10} />} />
                             <MetricRow label="Total Revenue" value={`$${video.revenue.toLocaleString()}`} color="text-emerald-400" icon={<Banknote size={10} />} />
 
-                             {/* Row 4: Rates (Show -> Close) */}
-                            <MetricRow label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-blue-400" icon={<Activity size={10} />} />
+                            {/* Row 3: Call Stats */}
+                            <MetricRow label="Booked Calls" value={video.calls} color="text-zinc-300" icon={<Phone size={10} />} />
+                            <MetricRow label="Taken Calls" value={video.taken} color="text-white" icon={<CheckCircle2 size={10} />} />
+
+                             {/* Row 4: Rates */}
+                            <MetricRow label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-blue-400" icon={<CheckCircle2 size={10} />} />
                             <MetricRow label="Close Rate" value={`${closeRate.toFixed(1)}%`} color="text-blue-400" icon={<TrendingUp size={10} />} />
 
-                            {/* Row 5: Footer Stats */}
+                            {/* Row 5: AOV */}
                             <div className="col-span-2 pt-3 border-t border-zinc-800/50 flex justify-between items-center">
                                 <div className="flex items-center gap-1.5">
                                     <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">AOV:</span>

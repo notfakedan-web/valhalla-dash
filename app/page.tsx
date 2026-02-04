@@ -242,7 +242,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 <StatBox label="Cash / Close" value={`$${avgCashClose.toFixed(0)}`} highlight />
             </div>
 
-            {/* ROW 3: CASH COLLECTED GRAPH */}
+            {/* ROW 3: CASH COLLECTED GRAPH (FIXED) */}
             <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-6 shadow-inner relative overflow-hidden h-[320px]">
                 <div className="flex items-center justify-between mb-6 relative z-10">
                     <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Collected</h3>
@@ -256,7 +256,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
                         {[1, 0.5, 0].map(step => (
                             <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
-                                <span className="absolute -left-8 -top-2 text-[11px] font-bold text-zinc-400 w-6 text-right">
+                                <span className="absolute -left-8 -top-2 text-[12px] font-bold text-zinc-500 w-6 text-right">
                                     ${((maxCash * step) / 1000).toFixed(0)}k
                                 </span>
                             </div>
@@ -276,7 +276,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                             const width = 800 / (trend.length || 1);
                             
                             // Clamp tooltip Y so it doesn't get cut off at the top
-                            const tooltipY = Math.max(0, 220 - barHeight - 45);
+                            const tooltipY = Math.max(10, 220 - barHeight - 20);
 
                             return (
                                 <g key={i} className="group">
@@ -285,14 +285,13 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                                     
                                     {count > 0 && <rect x={xPos - width/2} y={220 - barHeight} width={width} height={barHeight} fill="url(#barGrad)" rx="4" className="transition-all duration-300 opacity-60 group-hover:opacity-100 group-hover:fill-cyan-400" />}
                                     
-                                    {/* FIXED TOOLTIP: Wider and properly centered */}
-                                    <foreignObject x={xPos - 75} y={tooltipY} width="150" height="50" className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                        <div className="flex justify-center">
-                                            <div className="bg-white text-black text-[12px] font-black px-4 py-2 rounded-lg shadow-[0_0_20px_rgba(255,255,255,0.4)] whitespace-nowrap border border-zinc-200">
-                                                ${count.toLocaleString()}
-                                            </div>
-                                        </div>
-                                    </foreignObject>
+                                    {/* PURE SVG TOOLTIP (FIXES SQUISHING) */}
+                                    <g className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                        <rect x={xPos - 40} y={tooltipY - 25} width="80" height="30" rx="6" fill="white" className="shadow-xl" />
+                                        <text x={xPos} y={tooltipY - 6} textAnchor="middle" fill="black" fontSize="12" fontWeight="900" fontFamily="sans-serif">
+                                            ${count.toLocaleString()}
+                                        </text>
+                                    </g>
                                 </g>
                             );
                         })}
@@ -302,7 +301,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 
                     <div className="absolute inset-x-0 bottom-0 flex justify-between px-2">
                         {trend.filter((_, i) => i % Math.ceil(trend.length / 8) === 0).map(([date], i) => (
-                            <span key={i} className="text-[11px] font-bold text-zinc-400 uppercase">{date}</span>
+                            <span key={i} className="text-[12px] font-bold text-zinc-500 uppercase">{date}</span>
                         ))}
                     </div>
                 </div>

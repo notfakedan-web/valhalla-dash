@@ -1,4 +1,4 @@
-// 1. FORCE DYNAMIC REFRESH (Fixes the "laggy" data issue)
+// 1. FORCE DYNAMIC REFRESH
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -8,7 +8,7 @@ import { JWT } from 'google-auth-library';
 import Filters from './Filters';
 import { TrendingUp, DollarSign, Percent, Users, Phone, CheckCircle2, FileText } from 'lucide-react';
 
-// --- HELPER 1: FETCH SALES DATA (SHEET 1) ---
+// --- HELPER 1: FETCH SALES DATA ---
 async function getSheetData() {
   try {
     const serviceAccountAuth = new JWT({
@@ -43,7 +43,7 @@ async function getSheetData() {
   } catch (error) { return []; }
 }
 
-// --- HELPER 2: FETCH APPLICATIONS COUNT (SHEET 2 - LEAD FLOW) ---
+// --- HELPER 2: FETCH APPLICATIONS COUNT ---
 async function getApplicationsCount(start: Date | null, end: Date | null) {
     try {
         const serviceAccountAuth = new JWT({
@@ -89,7 +89,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const end = params.end ? new Date(params.end) : null;
   if (end) end.setHours(23, 59, 59, 999);
 
-  // 1. GET TOTAL APPLICATIONS (Independent Metric)
+  // 1. GET TOTAL APPLICATIONS
   const totalApplications = await getApplicationsCount(start, end);
 
   // 2. FILTER SALES DATA
@@ -104,15 +104,12 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
     return true;
   });
 
-  // 3. CALCULATE TOTAL CASH (Shared Numerator)
   const totalCash = performanceData.reduce((acc, curr) => acc + curr.cash, 0);
 
-  // Revenue Splits
   const mrrData = performanceData.filter(d => d.outcome.toLowerCase().includes('mrr'));
   const mrrCash = mrrData.reduce((acc, curr) => acc + curr.cash, 0);
   const newCash = totalCash - mrrCash;
   
-  // 4. CALCULATE APPOINTMENTS (Independent Denominator)
   const appointments = performanceData.filter(d => {
     const out = d.outcome.toLowerCase();
     const prospect = d.prospect.toLowerCase();
@@ -128,14 +125,9 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const showRate = callsDue > 0 ? (callsTaken / callsDue) * 100 : 0;
   const closeRate = callsTaken > 0 ? (callsClosed / callsTaken) * 100 : 0;
   
-  // 5. INDEPENDENT MATH
-  // Denominator: Appointments Booked (Sales Sheet)
+  // INDEPENDENT MATH
   const avgCashAppt = callsDue > 0 ? totalCash / callsDue : 0; 
-  
-  // Denominator: Calls Closed (Sales Sheet)
   const avgCashClose = callsClosed > 0 ? totalCash / callsClosed : 0; 
-  
-  // Denominator: Applications Submitted (Lead Sheet)
   const avgCashApplication = totalApplications > 0 ? totalCash / totalApplications : 0;
 
   const recentCalls = appointments.slice(0, 20);
@@ -203,22 +195,13 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
             </div>
         </div>
 
-        {/* MAIN DASHBOARD CONTENT */}
+        {/* MAIN CONTENT */}
         <div className="space-y-6 relative z-10">
             
             {/* ROW 1: TOP 3 CARDS */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                
-                {/* 1. NET CASH */}
-                <HeroCard 
-                    label="Net Cash Collected" 
-                    value={`$${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}`}
-                    icon={<DollarSign size={24} className="text-cyan-400" />}
-                    gradient="from-cyan-900/30 to-blue-900/10"
-                    borderColor="border-cyan-500/30"
-                />
+                <HeroCard label="Net Cash Collected" value={`$${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}`} icon={<DollarSign size={24} className="text-cyan-400" />} gradient="from-cyan-900/30 to-blue-900/10" borderColor="border-cyan-500/30" />
 
-                 {/* 2. REVENUE */}
                 <div className="relative group overflow-hidden bg-zinc-900/40 border border-emerald-500/30 p-8 rounded-3xl font-sans">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/30 to-teal-900/10 opacity-50" />
                     <div className="relative z-10 h-full flex flex-col justify-between">
@@ -229,7 +212,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                         <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums mb-2">
                              ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
                         </h2>
-                        
                         <div className="flex items-center gap-4 pt-2 border-t border-emerald-500/20">
                             <div className="flex items-center gap-1.5">
                                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
@@ -245,14 +227,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     </div>
                 </div>
 
-                 {/* 3. CLOSE RATE */}
-                 <HeroCard 
-                    label="Close Rate (Taken to Closed)" 
-                    value={`${closeRate.toFixed(1)}%`}
-                    icon={<Percent size={24} className="text-purple-400" />}
-                    gradient="from-purple-900/30 to-pink-900/10"
-                    borderColor="border-purple-500/30"
-                />
+                 <HeroCard label="Close Rate (Taken to Closed)" value={`${closeRate.toFixed(1)}%`} icon={<Percent size={24} className="text-purple-400" />} gradient="from-purple-900/30 to-pink-900/10" borderColor="border-purple-500/30" />
             </div>
 
             {/* ROW 2: ANALYTICS GRID */}
@@ -281,7 +256,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
                         {[1, 0.5, 0].map(step => (
                             <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
-                                <span className="absolute -left-8 -top-2 text-[8px] font-bold text-zinc-700 w-6 text-right">
+                                <span className="absolute -left-8 -top-2 text-[10px] font-bold text-zinc-500 w-6 text-right"> {/* Increased Size */}
                                     ${((maxCash * step) / 1000).toFixed(0)}k
                                 </span>
                             </div>
@@ -302,11 +277,15 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                             
                             return (
                                 <g key={i} className="group">
+                                    {/* Transparent hit area for easy hovering */}
                                     <rect x={xPos - width/2} y={0} width={width} height="100%" fill="transparent" />
+                                    
                                     {count > 0 && <rect x={xPos - width/2} y={220 - barHeight} width={width} height={barHeight} fill="url(#barGrad)" rx="4" className="transition-all duration-300 opacity-60 group-hover:opacity-100 group-hover:fill-cyan-400" />}
-                                    <foreignObject x={xPos - 50} y={220 - barHeight - 40} width="100" height="50" className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                    
+                                    {/* Wider, Centered Tooltip */}
+                                    <foreignObject x={xPos - 60} y={220 - barHeight - 45} width="120" height="50" className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                                         <div className="flex justify-center">
-                                            <div className="bg-white text-black text-[10px] font-black px-2 py-1 rounded shadow-[0_0_15px_rgba(255,255,255,0.5)] whitespace-nowrap">
+                                            <div className="bg-white text-black text-[11px] font-black px-3 py-1.5 rounded-lg shadow-[0_0_20px_rgba(255,255,255,0.4)] whitespace-nowrap">
                                                 ${count.toLocaleString()}
                                             </div>
                                         </div>
@@ -320,7 +299,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 
                     <div className="absolute inset-x-0 bottom-0 flex justify-between px-2">
                         {trend.filter((_, i) => i % Math.ceil(trend.length / 8) === 0).map(([date], i) => (
-                            <span key={i} className="text-[8px] font-bold text-zinc-600 uppercase">{date}</span>
+                            <span key={i} className="text-[10px] font-bold text-zinc-500 uppercase">{date}</span> /* Increased Size */
                         ))}
                     </div>
                 </div>

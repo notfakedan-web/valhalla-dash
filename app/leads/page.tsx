@@ -6,7 +6,7 @@ import React from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
 import Filters from '../Filters'; 
-import { Users, Filter, TrendingUp, Search, Globe } from 'lucide-react';
+import { Users, Filter, TrendingUp, Search, Globe, DollarSign } from 'lucide-react';
 
 // --- HELPER: FETCH LEADS DATA ---
 async function getLeadsData() {
@@ -28,11 +28,15 @@ async function getLeadsData() {
           return foundKey ? row.get(foundKey) : '';
       };
       
+      // Clean up source to ensure matches (trim whitespace)
+      let source = getVal('utm_source') || 'Organic';
+      source = source.trim(); 
+
       return {
         firstName: getVal('First Name') || 'Unknown',
         lastName: getVal('Last Name') || '',
         email: getVal('Email') || 'N/A',
-        source: getVal('utm_source') || 'Organic',
+        source: source,
         funds: getVal('funds') || 'Unknown',
         date: getVal('Submitted At') || getVal('Date') || '',
       };
@@ -49,19 +53,26 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const end = params.end ? new Date(params.end) : null;
   if (end) end.setHours(23, 59, 59, 999);
 
-  // 1. FILTER DATA
+  // 1. FILTER DATA (NOW INCLUDES PLATFORM CHECK)
   const filteredLeads = allLeads.filter(l => {
+    // Date Filter
     if (!l.date) return false;
     let d = new Date(l.date);
     if (isNaN(d.getTime()) && l.date.includes('/')) {
         const p = l.date.split(' ')[0].split('/');
         if (p.length === 3) d = new Date(parseInt(p[2]), parseInt(p[0])-1, parseInt(p[1]));
     }
-    
     if (start && d < start) return false;
     if (end && d > end) return false;
+
+    // *** PLATFORM FILTER FIX ***
+    if (params.platform && l.source.toLowerCase() !== params.platform.toLowerCase()) return false;
+
     return true;
   });
+
+  // Get unique platforms from ACTUAL data for the dropdown
+  const uniquePlatforms = Array.from(new Set(allLeads.map(l => l.source))).filter(Boolean);
 
   const totalLeads = filteredLeads.length;
   const qualifiedLeads = filteredLeads.filter(l => l.funds && !['$0-$500', '0-500', 'Unknown'].some(x => l.funds.includes(x))).length;
@@ -133,34 +144,27 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg flex flex-wrap items-center gap-4 shadow-sm">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
                 
-                {/* REMOVED DUPLICATE BUTTON HERE */}
-                
-                <Filters platforms={['YouTube', 'Instagram', 'Ads']} closers={[]} setters={[]} />
+                {/* Passing DYNAMIC platforms from sheet to Filters */}
+                <Filters platforms={uniquePlatforms} closers={[]} setters={[]} />
             </div>
         </div>
 
         <div className="space-y-6 relative z-10">
             
-            {/* ROW 1: TOP METRICS (STYLE MATCHED TO SALES DASHBOARD) */}
+            {/* ROW 1: TOP METRICS */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                
-                {/* 1. Total Leads (Blue/Cyan) */}
                 <HeroCard 
                     label="Total Leads" 
                     value={totalLeads.toLocaleString()} 
                     icon={<Users size={18} className="text-blue-400" />}
                     accentColor="blue"
                 />
-
-                 {/* 2. Qualified Leads (Indigo) */}
                 <HeroCard 
                     label="Qualified (High Ticket)" 
                     value={qualifiedLeads.toLocaleString()} 
                     icon={<Filter size={18} className="text-indigo-400" />}
                     accentColor="indigo"
                 />
-
-                 {/* 3. Qualification Rate (Emerald) */}
                  <HeroCard 
                     label="Qualification Rate" 
                     value={`${qualificationRate.toFixed(1)}%`} 
@@ -183,7 +187,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     </div>
 
                     <div className="h-[220px] w-full relative">
-                        {/* SVG Layer */}
                         <div className="absolute inset-0 z-0">
                             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
                                 {[1, 0.5, 0].map(step => (
@@ -210,7 +213,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                             </svg>
                         </div>
 
-                        {/* HTML Overlay Layer */}
                         <div className="absolute inset-0 z-10 pl-2 pb-6 flex items-end justify-between">
                             {trend.map(([date, count], i) => (
                                 <div key={i} className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-crosshair hover:bg-white/5 transition-colors rounded-lg">
@@ -311,9 +313,7 @@ function HeroCard({ label, value, icon, accentColor }: any) {
 
     return (
         <div className={`relative overflow-hidden bg-zinc-900/40 border ${style.split(' ')[2]} backdrop-blur-sm p-6 rounded-2xl shadow-sm flex flex-col justify-between h-36`}>
-            {/* Top Tint */}
             <div className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-b ${style.split(' ')[0]} to-transparent opacity-50`}></div>
-            
              <div className="relative z-10 flex justify-between items-start mb-3">
                 <p className={`text-[11px] font-bold uppercase tracking-wider ${style.split(' ')[4]}`}>{label}</p>
                 {icon}

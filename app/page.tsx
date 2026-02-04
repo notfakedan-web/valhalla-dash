@@ -166,7 +166,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
     <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans">
       <div className="max-w-[1600px] mx-auto">
         
-        {/* HEADER */}
+        {/* HEADER & FILTERS */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-8 relative z-[100]">
             <div>
                 <div className="flex items-center gap-2 mb-1">
@@ -185,58 +185,51 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
         {/* MAIN DASHBOARD */}
         <div className="space-y-6 relative z-10">
             
-            {/* ROW 1: TOP 3 CARDS (ALIGNED & SLIM) */}
+            {/* ROW 1: TOP 3 CARDS (ALIGNED & POPPING) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 
-                {/* 1. Net Cash */}
-                <div className="bg-zinc-900/40 border border-cyan-500/20 backdrop-blur-sm p-6 rounded-2xl shadow-sm h-36 flex flex-col justify-between">
-                     <div className="flex justify-between items-start">
-                        <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Net Cash Collected</p>
+                {/* 1. Net Cash (With Breakdown) */}
+                <div className="bg-zinc-900/40 border border-cyan-500/30 backdrop-blur-sm p-6 rounded-2xl shadow-[0_0_30px_-10px_rgba(6,182,212,0.15)] flex flex-col justify-start h-40">
+                     <div className="flex justify-between items-start mb-2">
+                        <p className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider">Net Cash Collected</p>
                         <DollarSign size={18} className="text-cyan-400" />
                     </div>
-                    {/* Aligned Number */}
-                    <div className="flex-1 flex items-center">
-                        <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums">${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}</h2>
-                    </div>
-                </div>
-
-                 {/* 2. Total Revenue (Breakdown Below) */}
-                <div className="bg-zinc-900/40 border border-emerald-500/20 backdrop-blur-sm p-6 rounded-2xl shadow-sm h-36 flex flex-col justify-between">
-                     <div className="flex justify-between items-start">
-                        <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Total Revenue</p>
-                        <TrendingUp size={18} className="text-emerald-400" />
-                    </div>
+                    {/* Number Aligned Top */}
+                    <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums mb-auto">${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}</h2>
                     
-                    {/* Aligned Number Container */}
-                    <div className="flex-1 flex flex-col justify-center gap-2">
-                        <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums">${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}</h2>
-                        
-                        {/* Breakdown Frames */}
-                        <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900/50">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                                <span className="text-[9px] font-medium text-zinc-400 uppercase">New:</span>
-                                <span className="text-[10px] font-bold text-white tabular-nums">${newCash.toLocaleString()}</span>
-                            </div>
-                             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900/50">
-                                <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
-                                <span className="text-[9px] font-medium text-zinc-400 uppercase">MRR:</span>
-                                <span className="text-[10px] font-bold text-white tabular-nums">${mrrCash.toLocaleString()}</span>
-                            </div>
+                    {/* Breakdown (Bottom) */}
+                    <div className="flex items-center gap-2 mt-2">
+                        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-cyan-950/30 border border-cyan-500/20">
+                            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
+                            <span className="text-[9px] font-bold text-cyan-200/70 uppercase">New:</span>
+                            <span className="text-[10px] font-bold text-cyan-100 tabular-nums">${newCash.toLocaleString()}</span>
+                        </div>
+                         <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-cyan-950/30 border border-cyan-500/20">
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+                            <span className="text-[9px] font-bold text-cyan-200/70 uppercase">MRR:</span>
+                            <span className="text-[10px] font-bold text-cyan-100 tabular-nums">${mrrCash.toLocaleString()}</span>
                         </div>
                     </div>
                 </div>
 
+                 {/* 2. Total Revenue */}
+                <div className="bg-zinc-900/40 border border-emerald-500/30 backdrop-blur-sm p-6 rounded-2xl shadow-[0_0_30px_-10px_rgba(16,185,129,0.15)] flex flex-col justify-start h-40">
+                     <div className="flex justify-between items-start mb-2">
+                        <p className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Total Revenue</p>
+                        <TrendingUp size={18} className="text-emerald-400" />
+                    </div>
+                    {/* Number Aligned Top (Matches Cash Card) */}
+                    <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums mb-auto">${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}</h2>
+                </div>
+
                  {/* 3. Close Rate */}
-                 <div className="bg-zinc-900/40 border border-purple-500/20 backdrop-blur-sm p-6 rounded-2xl shadow-sm h-36 flex flex-col justify-between">
-                     <div className="flex justify-between items-start">
-                        <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Close Rate (Taken)</p>
+                 <div className="bg-zinc-900/40 border border-purple-500/30 backdrop-blur-sm p-6 rounded-2xl shadow-[0_0_30px_-10px_rgba(168,85,247,0.15)] flex flex-col justify-start h-40">
+                     <div className="flex justify-between items-start mb-2">
+                        <p className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">Close Rate (Taken)</p>
                         <Percent size={18} className="text-purple-400" />
                     </div>
-                    {/* Aligned Number */}
-                    <div className="flex-1 flex items-center">
-                        <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums">{closeRate.toFixed(1)}%</h2>
-                    </div>
+                    {/* Number Aligned Top (Matches Cash Card) */}
+                    <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums mb-auto">{closeRate.toFixed(1)}%</h2>
                 </div>
             </div>
 

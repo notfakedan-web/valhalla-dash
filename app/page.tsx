@@ -4,9 +4,9 @@ import React from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
 import Filters from './Filters';
-import { TrendingUp, DollarSign, Percent, Users, Phone, CheckCircle2, FileText, BarChart3 } from 'lucide-react';
+import { TrendingUp, DollarSign, Percent, Users, Phone, CheckCircle2, FileText } from 'lucide-react';
 
-// --- 1. HELPER: FETCH SALES DATA ---
+// --- DATA FETCHING (Same as before) ---
 async function getSheetData() {
   try {
     const serviceAccountAuth = new JWT({
@@ -14,20 +14,16 @@ async function getSheetData() {
       key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
-
     const doc = new GoogleSpreadsheet(process.env.SHEET_ID!, serviceAccountAuth);
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
     const rows = await sheet.getRows();
-
     return rows.map(row => {
       const getVal = (search: string) => {
           const foundKey = sheet.headerValues.find(h => h.toLowerCase().trim().includes(search.toLowerCase().trim()));
           return foundKey ? row.get(foundKey) : '';
       };
-      
       return {
-        timestamp: getVal('Timestamp') || '',
         date: getVal('Date Call Was Taken') || '',
         closer: getVal('Closer Name') || 'N/A',
         setter: getVal('Setter Name') || 'N/A',
@@ -41,7 +37,6 @@ async function getSheetData() {
   } catch (error) { return []; }
 }
 
-// --- 2. HELPER: FETCH APPLICATIONS COUNT ---
 async function getApplicationsCount(start: Date | null, end: Date | null) {
     try {
         const serviceAccountAuth = new JWT({
@@ -53,7 +48,6 @@ async function getApplicationsCount(start: Date | null, end: Date | null) {
         await doc.loadInfo();
         const sheet = doc.sheetsByIndex[0];
         const rows = await sheet.getRows();
-        
         return rows.filter(row => {
             const rawDate = row.get('submitted at') || row.get('date');
             if (!rawDate) return false;
@@ -69,6 +63,7 @@ async function getApplicationsCount(start: Date | null, end: Date | null) {
     } catch (e) { return 0; }
 }
 
+// --- MAIN DASHBOARD ---
 export default async function ValhallaDashboard({ searchParams }: { searchParams: Promise<any> }) {
   const params = await searchParams;
   const allRawData = await getSheetData();
@@ -78,10 +73,8 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const end = params.end ? new Date(params.end) : null;
   if (end) end.setHours(23, 59, 59, 999);
 
-  // FETCH APPLICATIONS
   const totalApplications = await getApplicationsCount(start, end);
 
-  // MAIN FILTERING
   const performanceData = allRawData.filter(d => {
     if (!d.date) return false;
     const dDate = new Date(d.date);
@@ -94,8 +87,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   });
 
   const totalCash = performanceData.reduce((acc, curr) => acc + curr.cash, 0);
-
-  // MRR vs New Cash Split
   const mrrData = performanceData.filter(d => d.outcome.toLowerCase().includes('mrr'));
   const mrrCash = mrrData.reduce((acc, curr) => acc + curr.cash, 0);
   const newCash = totalCash - mrrCash;
@@ -107,55 +98,41 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   });
 
   const totalRev = appointments.reduce((acc, curr) => acc + curr.revenue, 0);
-
   const callsDue = appointments.length;
-  const callsTaken = appointments.filter(d => 
-    !['no show', 'rescheduled', 'cancelled'].some(x => d.outcome.toLowerCase().includes(x))
-  ).length;
-
-  const callsClosed = appointments.filter(d => 
-    ['closed', 'deposit collected', 'paid', 'full pay'].some(x => d.outcome.toLowerCase().includes(x))
-  ).length;
-  
+  const callsTaken = appointments.filter(d => !['no show', 'rescheduled', 'cancelled'].some(x => d.outcome.toLowerCase().includes(x))).length;
+  const callsClosed = appointments.filter(d => ['closed', 'deposit collected', 'paid', 'full pay'].some(x => d.outcome.toLowerCase().includes(x))).length;
   const showRate = callsDue > 0 ? (callsTaken / callsDue) * 100 : 0;
   const closeRate = callsTaken > 0 ? (callsClosed / callsTaken) * 100 : 0;
-  
   const avgCashAppt = callsDue > 0 ? totalCash / callsDue : 0;
   const avgCashClose = callsClosed > 0 ? totalCash / callsClosed : 0;
   const avgCashApplication = totalApplications > 0 ? totalCash / totalApplications : 0;
+  const recentCalls = appointments.slice(0, 20);
 
-  const recentCalls = appointments.slice(0, 10);
-
-  // GRAPH LOGIC
-  let graphStart = start;
-  let graphEnd = end;
-
-  if (!graphStart && performanceData.length > 0) {
-      const times = performanceData.map(d => new Date(d.date).getTime());
-      graphStart = new Date(Math.min(...times));
-  }
-  if (!graphEnd && performanceData.length > 0) {
-      const times = performanceData.map(d => new Date(d.date).getTime());
-      graphEnd = new Date(Math.max(...times));
-  }
+  // GRAPH DATA PREP
+  let graphStart = start; let graphEnd = end;
+  if (!graphStart && performanceData.length > 0) { const times = performanceData.map(d => new Date(d.date).getTime()); graphStart = new Date(Math.min(...times)); }
+  if (!graphEnd && performanceData.length > 0) { const times = performanceData.map(d => new Date(d.date).getTime()); graphEnd = new Date(Math.max(...times)); }
   if (!graphStart) graphStart = new Date(today.getFullYear(), today.getMonth(), 1);
   if (!graphEnd) graphEnd = today;
 
   const dayMap = new Map<string, number>();
   for (let d = new Date(graphStart); d <= graphEnd; d.setDate(d.getDate() + 1)) {
-      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      dayMap.set(label, 0);
+      dayMap.set(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 0);
   }
-
   performanceData.forEach(d => {
     const day = new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    if (dayMap.has(day)) {
-        dayMap.set(day, (dayMap.get(day) || 0) + d.cash);
-    }
+    if (dayMap.has(day)) dayMap.set(day, (dayMap.get(day) || 0) + d.cash);
   });
-
   const trend = Array.from(dayMap.entries());
   const maxCash = Math.max(...trend.map(([_, c]) => c), 1);
+
+  // Collect points for the polyline to ensure alignment
+  const linePoints: string[] = [];
+  trend.forEach(([_, count], i) => {
+      const x = (i / (trend.length - 1 || 1)) * 1000;
+      const y = 220 - (count / maxCash) * 220;
+      linePoints.push(`${x},${y}`);
+  });
 
   const platforms = Array.from(new Set(allRawData.map(d => d.platform))).filter(Boolean) as string[];
   const closers = Array.from(new Set(allRawData.map(d => d.closer))).filter(Boolean) as string[];
@@ -175,80 +152,62 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 </div>
                 <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Valhalla <span className="text-cyan-500">OS</span></h1>
             </div>
-            
             <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-2 pl-6 rounded-2xl flex flex-wrap items-center gap-4">
                 <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
                 <Filters platforms={platforms} closers={closers} setters={setters} />
             </div>
         </div>
 
-        {/* MAIN DASHBOARD CONTENT */}
         <div className="space-y-6 relative z-10">
             
-            {/* ROW 1: THE TOP 3 KEY METRICS */}
+            {/* ROW 1: TOP 3 METRICS (Slimmer Revenue Card) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                
-                {/* 1. Net Cash */}
-                <HeroCard 
-                    label="Net Cash Collected" 
-                    value={`$${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}`}
-                    icon={<DollarSign size={24} className="text-cyan-400" />}
-                    gradient="from-cyan-900/30 to-blue-900/10"
-                    borderColor="border-cyan-500/30"
-                />
+                <HeroCard label="Net Cash Collected" value={`$${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}`} icon={<DollarSign size={24} className="text-cyan-400" />} gradient="from-cyan-900/30 to-blue-900/10" borderColor="border-cyan-500/30" />
 
-                 {/* 2. Total Revenue */}
-                <div className="relative group overflow-hidden bg-zinc-900/40 border border-emerald-500/30 p-8 rounded-3xl">
+                 {/* Slimmer Total Revenue Card */}
+                <div className="relative group overflow-hidden bg-zinc-900/40 border border-emerald-500/30 p-8 rounded-3xl font-sans">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/30 to-teal-900/10 opacity-50" />
                     <div className="relative z-10 h-full flex flex-col justify-between">
-                         <div className="flex justify-between items-start mb-4">
+                         <div className="flex justify-between items-start mb-2">
                             <p className="text-xs font-black text-zinc-400 uppercase tracking-widest">Total Revenue</p>
                             <TrendingUp size={24} className="text-emerald-400" />
                         </div>
-                        <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums mb-6">
+                        <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums mb-2">
                              ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
                         </h2>
                         
-                        {/* Highlights embedded inside */}
-                        <div className="flex gap-4">
-                            <div className="px-3 py-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                                <span className="text-[9px] font-bold uppercase text-emerald-400 mr-2">New Cash</span>
-                                <span className="text-sm font-black text-white">${newCash.toLocaleString()}</span>
+                        {/* Compact Breakdown Footer */}
+                        <div className="flex items-center gap-4 pt-2 border-t border-emerald-500/20">
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+                                <span className="text-[9px] font-bold uppercase text-emerald-300">New Cash:</span>
+                                <span className="text-xs font-black text-white tabular-nums">${newCash.toLocaleString()}</span>
                             </div>
-                             <div className="px-3 py-1.5 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
-                                <span className="text-[9px] font-bold uppercase text-cyan-400 mr-2">MRR Added</span>
-                                <span className="text-sm font-black text-white">${mrrCash.toLocaleString()}</span>
+                             <div className="flex items-center gap-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
+                                <span className="text-[9px] font-bold uppercase text-cyan-300">MRR:</span>
+                                <span className="text-xs font-black text-white tabular-nums">${mrrCash.toLocaleString()}</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                 {/* 3. Close Rate */}
-                 <HeroCard 
-                    label="Close Rate (Taken to Closed)" 
-                    value={`${closeRate.toFixed(1)}%`}
-                    icon={<Percent size={24} className="text-purple-400" />}
-                    gradient="from-purple-900/30 to-pink-900/10"
-                    borderColor="border-purple-500/30"
-                />
+                 <HeroCard label="Close Rate (Taken to Closed)" value={`${closeRate.toFixed(1)}%`} icon={<Percent size={24} className="text-purple-400" />} gradient="from-purple-900/30 to-pink-900/10" borderColor="border-purple-500/30" />
             </div>
 
-            {/* ROW 2: ANALYTICS GRID (8 Cards - No Scrolling) */}
+            {/* ROW 2: ANALYTICS GRID */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {/* Funnel */}
                 <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} icon={<Users size={14}/>} />
                 <StatBox label="Calls Due" value={callsDue} icon={<Phone size={14}/>} />
                 <StatBox label="Calls Taken" value={callsTaken} icon={<Phone size={14} className="fill-zinc-500/20"/>} />
                 <StatBox label="Calls Closed" value={callsClosed} icon={<CheckCircle2 size={14} className="text-cyan-500"/>} highlight />
-
-                {/* Efficiency */}
                 <StatBox label="Total Applications" value={totalApplications} icon={<FileText size={14}/>} />
                 <StatBox label="Cash / Application" value={`$${avgCashApplication.toFixed(0)}`} />
                 <StatBox label="Cash / Appt" value={`$${avgCashAppt.toFixed(0)}`} />
                 <StatBox label="Cash / Close" value={`$${avgCashClose.toFixed(0)}`} highlight />
             </div>
 
-            {/* ROW 3: CASH COLLECTED GRAPH (Line + Bar + Hover Bubbles) */}
+            {/* ROW 3: CASH COLLECTED GRAPH (Fixed Alignment) */}
             <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-6 shadow-inner relative overflow-hidden h-[320px]">
                 <div className="flex items-center justify-between mb-6 relative z-10">
                     <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Collected</h3>
@@ -257,20 +216,16 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                         <span className="text-[10px] font-bold text-zinc-600 italic">Daily Trend</span>
                     </div>
                 </div>
-
                 <div className="h-[220px] w-full relative z-10">
                         {/* Y-Axis Grid */}
                         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
                         {[1, 0.5, 0].map(step => (
                             <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
-                                <span className="absolute -left-8 -top-2 text-[8px] font-bold text-zinc-700 w-6 text-right">
-                                    ${((maxCash * step) / 1000).toFixed(0)}k
-                                </span>
+                                <span className="absolute -left-8 -top-2 text-[8px] font-bold text-zinc-700 w-6 text-right">${((maxCash * step) / 1000).toFixed(0)}k</span>
                             </div>
                         ))}
                     </div>
-
-                    <svg className="absolute inset-0 w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none">
+                    <svg className="absolute inset-0 w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none" viewBox="0 0 1000 220">
                             <defs>
                             <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.8"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1"/></linearGradient>
                             <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#fff" /><stop offset="100%" stopColor="#22d3ee" /></linearGradient>
@@ -280,66 +235,28 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                         {/* BARS & HOVER BUBBLES */}
                         {trend.map(([date, count], i) => {
                             const barHeight = (count / maxCash) * 220;
-                            const xPos = (i / (trend.length - 1 || 1)) * 100;
-                            const width = 80 / (trend.length || 1);
-                            
-                            // Calculate polyline points for the line
-                            const xLine = (i / (trend.length - 1 || 1)) * 1000;
-                            const yLine = 220 - (count / maxCash) * 220;
-
+                            const xPos = (i / (trend.length - 1 || 1)) * 1000;
+                            const width = 800 / (trend.length || 1); // Adjusted width calculation for SVG coord space
                             return (
                                 <g key={i} className="group">
-                                    {/* Invisible Hit Area for better hover */}
-                                    <rect x={`${xPos - width/2}%`} y="0" width={`${width}%`} height="100%" fill="transparent" />
-                                    
-                                    {/* The Bar */}
-                                    {count > 0 && (
-                                        <rect 
-                                            x={`${xPos - width/2}%`} 
-                                            y={220 - barHeight} 
-                                            width={`${width}%`} 
-                                            height={barHeight} 
-                                            fill="url(#barGrad)" 
-                                            rx="2" 
-                                            className="transition-all duration-300 opacity-60 group-hover:opacity-100 group-hover:fill-cyan-400"
-                                        />
-                                    )}
-
-                                    {/* Tooltip Bubble (White) */}
-                                    <foreignObject x={`${xPos - width/2 - 5}%`} y={220 - barHeight - 40} width="100" height="50" className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                        <div className="flex justify-center">
-                                            <div className="bg-white text-black text-[10px] font-black px-2 py-1 rounded shadow-[0_0_15px_rgba(255,255,255,0.5)] whitespace-nowrap">
-                                                ${count.toLocaleString()}
-                                            </div>
-                                        </div>
-                                    </foreignObject>
+                                    <rect x={xPos - width/2} y={220 - barHeight} width={width} height={barHeight} fill="url(#barGrad)" rx="4" className="transition-all duration-300 opacity-60 group-hover:opacity-100 group-hover:fill-cyan-400" />
+                                    {/* Tooltip */}
+                                    <foreignObject x={xPos - 50} y={220 - barHeight - 40} width="100" height="50" className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"><div className="flex justify-center"><div className="bg-white text-black text-[10px] font-black px-2 py-1 rounded shadow-[0_0_15px_rgba(255,255,255,0.5)] whitespace-nowrap">${count.toLocaleString()}</div></div></foreignObject>
                                 </g>
                             );
                         })}
 
-                        {/* NEON TREND LINE OVERLAY */}
-                            <polyline
-                            fill="none" stroke="url(#lineGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                            points={trend.map(([_, count], i) => {
-                                const x = (i / (trend.length - 1 || 1)) * 1000;
-                                const y = 220 - (count / maxCash) * 220;
-                                return `${x},${y}`;
-                            }).join(' ')}
-                            viewBox="0 0 1000 220" style={{ vectorEffect: 'non-scaling-stroke', filter: 'url(#glow)' }}
-                            className="pointer-events-none opacity-80"
-                        />
+                        {/* NEON TREND LINE OVERLAY (Now Aligned) */}
+                        <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} style={{ vectorEffect: 'non-scaling-stroke', filter: 'url(#glow)' }} className="pointer-events-none opacity-90" />
                     </svg>
-
                         {/* X-Axis Labels */}
                         <div className="absolute inset-x-0 bottom-0 flex justify-between px-2">
-                        {trend.filter((_, i) => i % Math.ceil(trend.length / 8) === 0).map(([date], i) => (
-                            <span key={i} className="text-[8px] font-bold text-zinc-600 uppercase">{date}</span>
-                        ))}
+                        {trend.filter((_, i) => i % Math.ceil(trend.length / 8) === 0).map(([date], i) => (<span key={i} className="text-[8px] font-bold text-zinc-600 uppercase">{date}</span>))}
                     </div>
                 </div>
             </div>
 
-            {/* ROW 4: RECENT CALLS LOG (Full Width) */}
+            {/* ROW 4: RECENT CALLS LOG */}
             <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl overflow-hidden">
                 <div className="p-6 border-b border-zinc-800/50 bg-zinc-900/20 flex justify-between items-center">
                     <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400">Recent Call Log</h3>
@@ -366,7 +283,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                      </div>
                 </div>
             </div>
-
         </div>
       </div>
     </div>
@@ -374,19 +290,16 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 }
 
 // --- COMPONENTS ---
-
 function HeroCard({ label, value, icon, gradient, borderColor }: any) {
     return (
-        <div className={`relative group overflow-hidden bg-zinc-900/40 border ${borderColor} p-8 rounded-3xl`}>
+        <div className={`relative group overflow-hidden bg-zinc-900/40 border ${borderColor} p-8 rounded-3xl font-sans`}>
             <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-50`} />
             <div className="relative z-10 h-full flex flex-col justify-between">
                  <div className="flex justify-between items-start mb-4">
                     <p className="text-xs font-black text-zinc-400 uppercase tracking-widest">{label}</p>
                     {icon}
                 </div>
-                <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">
-                    {value}
-                </h2>
+                <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">{value}</h2>
             </div>
         </div>
     )
@@ -394,7 +307,7 @@ function HeroCard({ label, value, icon, gradient, borderColor }: any) {
 
 function StatBox({ label, value, icon, highlight = false }: { label: string, value: any, icon?: React.ReactNode, highlight?: boolean }) {
     return (
-        <div className={`bg-zinc-900/40 border ${highlight ? 'border-cyan-500/30 bg-cyan-900/10' : 'border-zinc-800/50'} p-5 rounded-2xl transition-all group hover:border-cyan-500/20 flex flex-col justify-between gap-3`}>
+        <div className={`bg-zinc-900/40 border ${highlight ? 'border-cyan-500/30 bg-cyan-900/10' : 'border-zinc-800/50'} p-5 rounded-2xl transition-all group hover:border-cyan-500/20 flex flex-col justify-between gap-3 font-sans`}>
             <div className="flex items-center justify-between">
                  <p className={`text-[10px] font-black uppercase tracking-widest ${highlight ? 'text-cyan-300' : 'text-zinc-500'}`}>{label}</p>
                  {icon && <div className={`${highlight ? 'text-cyan-400' : 'text-zinc-600'} opacity-70`}>{icon}</div>}

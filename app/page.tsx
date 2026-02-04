@@ -89,10 +89,9 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const end = params.end ? new Date(params.end) : null;
   if (end) end.setHours(23, 59, 59, 999);
 
-  // 1. GET TOTAL APPLICATIONS
+  // 1. DATA PROCESSING
   const totalApplications = await getApplicationsCount(start, end);
 
-  // 2. FILTER SALES DATA
   const performanceData = allRawData.filter(d => {
     if (!d.date) return false;
     const dDate = new Date(d.date);
@@ -105,7 +104,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   });
 
   const totalCash = performanceData.reduce((acc, curr) => acc + curr.cash, 0);
-
   const mrrData = performanceData.filter(d => d.outcome.toLowerCase().includes('mrr'));
   const mrrCash = mrrData.reduce((acc, curr) => acc + curr.cash, 0);
   const newCash = totalCash - mrrCash;
@@ -117,7 +115,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   });
 
   const totalRev = appointments.reduce((acc, curr) => acc + curr.revenue, 0);
-
   const callsDue = appointments.length;
   const callsTaken = appointments.filter(d => !['no show', 'rescheduled', 'cancelled'].some(x => d.outcome.toLowerCase().includes(x))).length;
   const callsClosed = appointments.filter(d => ['closed', 'deposit collected', 'paid', 'full pay'].some(x => d.outcome.toLowerCase().includes(x))).length;
@@ -125,48 +122,41 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const showRate = callsDue > 0 ? (callsTaken / callsDue) * 100 : 0;
   const closeRate = callsTaken > 0 ? (callsClosed / callsTaken) * 100 : 0;
   
-  // INDEPENDENT MATH
   const avgCashAppt = callsDue > 0 ? totalCash / callsDue : 0; 
   const avgCashClose = callsClosed > 0 ? totalCash / callsClosed : 0; 
   const avgCashApplication = totalApplications > 0 ? totalCash / totalApplications : 0;
 
   const recentCalls = appointments.slice(0, 20);
 
-  // GRAPH LOGIC
-  let graphStart = start;
-  let graphEnd = end;
-
-  if (!graphStart && performanceData.length > 0) {
-      const times = performanceData.map(d => new Date(d.date).getTime());
-      graphStart = new Date(Math.min(...times));
-  }
-  if (!graphEnd && performanceData.length > 0) {
-      const times = performanceData.map(d => new Date(d.date).getTime());
-      graphEnd = new Date(Math.max(...times));
-  }
+  // GRAPH DATA PREP
+  let graphStart = start; let graphEnd = end;
+  if (!graphStart && performanceData.length > 0) { const times = performanceData.map(d => new Date(d.date).getTime()); graphStart = new Date(Math.min(...times)); }
+  if (!graphEnd && performanceData.length > 0) { const times = performanceData.map(d => new Date(d.date).getTime()); graphEnd = new Date(Math.max(...times)); }
   if (!graphStart) graphStart = new Date(today.getFullYear(), today.getMonth(), 1);
   if (!graphEnd) graphEnd = today;
 
   const dayMap = new Map<string, number>();
   for (let d = new Date(graphStart); d <= graphEnd; d.setDate(d.getDate() + 1)) {
-      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      dayMap.set(label, 0);
+      dayMap.set(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 0);
   }
-
   performanceData.forEach(d => {
     const day = new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    if (dayMap.has(day)) {
-        dayMap.set(day, (dayMap.get(day) || 0) + d.cash);
-    }
+    if (dayMap.has(day)) dayMap.set(day, (dayMap.get(day) || 0) + d.cash);
   });
-
   const trend = Array.from(dayMap.entries());
   const maxCash = Math.max(...trend.map(([_, c]) => c), 1);
 
+  // Constants for Chart Dimensions
+  const CHART_HEIGHT = 220;
+  const CHART_WIDTH = 1000;
+  const BAR_MAX_HEIGHT = 180; // Leave room for top tooltip
+
   const linePoints: string[] = [];
   trend.forEach(([_, count], i) => {
-      const x = (i / (trend.length - 1 || 1)) * 1000;
-      const y = 220 - (count / maxCash) * 220;
+      const x = (i / (trend.length - 1 || 1)) * CHART_WIDTH;
+      // Flip Y axis: 0 is at bottom (CHART_HEIGHT), Max is at Top
+      // We map 0 -> CHART_HEIGHT, MaxCash -> (CHART_HEIGHT - BAR_MAX_HEIGHT)
+      const y = CHART_HEIGHT - ((count / maxCash) * BAR_MAX_HEIGHT); 
       linePoints.push(`${x},${y}`);
   });
 
@@ -195,7 +185,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
             </div>
         </div>
 
-        {/* MAIN CONTENT */}
+        {/* MAIN DASHBOARD */}
         <div className="space-y-6 relative z-10">
             
             {/* ROW 1: TOP 3 CARDS */}
@@ -242,9 +232,9 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 <StatBox label="Cash / Close" value={`$${avgCashClose.toFixed(0)}`} highlight />
             </div>
 
-            {/* ROW 3: CASH COLLECTED GRAPH (FIXED) */}
-            <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-6 shadow-inner relative overflow-hidden h-[320px]">
-                <div className="flex items-center justify-between mb-6 relative z-10">
+            {/* ROW 3: CASH COLLECTED GRAPH (REBUILT FROM SCRATCH) */}
+            <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-6 shadow-inner relative overflow-hidden h-[340px]">
+                <div className="flex items-center justify-between mb-8 relative z-10">
                     <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Collected</h3>
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
@@ -252,56 +242,80 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     </div>
                 </div>
 
-                <div className="h-[220px] w-full relative z-10">
+                <div className="h-[220px] w-full relative z-10 select-none">
+                    {/* Background Grid Lines */}
                     <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
                         {[1, 0.5, 0].map(step => (
                             <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
-                                <span className="absolute -left-8 -top-2 text-[12px] font-bold text-zinc-500 w-6 text-right">
+                                <span className="absolute -left-8 -top-2 text-[10px] font-bold text-zinc-500 w-6 text-right">
                                     ${((maxCash * step) / 1000).toFixed(0)}k
                                 </span>
                             </div>
                         ))}
                     </div>
 
-                    <svg className="absolute inset-0 w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none" viewBox="0 0 1000 220">
+                    <svg className="absolute inset-0 w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
                         <defs>
-                            <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.8"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1"/></linearGradient>
+                            <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.9"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.2"/></linearGradient>
                             <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#fff" /><stop offset="100%" stopColor="#22d3ee" /></linearGradient>
-                            <filter id="glow"><feGaussianBlur stdDeviation="2.5" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                            <filter id="glow"><feGaussianBlur stdDeviation="3" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
                         </defs>
                         
                         {trend.map(([date, count], i) => {
-                            const barHeight = (count / maxCash) * 220;
-                            const xPos = (i / (trend.length - 1 || 1)) * 1000;
-                            const width = 800 / (trend.length || 1);
-                            
-                            // Clamp tooltip Y so it doesn't get cut off at the top
-                            const tooltipY = Math.max(10, 220 - barHeight - 20);
+                            const barHeight = (count / maxCash) * BAR_MAX_HEIGHT;
+                            const xPos = (i / (trend.length - 1 || 1)) * CHART_WIDTH;
+                            const width = (CHART_WIDTH / (trend.length || 1)) * 0.8; // 80% width
+                            const yPos = CHART_HEIGHT - barHeight;
 
                             return (
-                                <g key={i} className="group">
-                                    {/* Transparent hit area */}
-                                    <rect x={xPos - width/2} y={0} width={width} height="100%" fill="transparent" />
+                                <g key={i} className="group cursor-crosshair">
+                                    {/* Invisible Hover Zone (Full Height) */}
+                                    <rect x={xPos - width} y={0} width={width * 2} height={CHART_HEIGHT} fill="transparent" />
                                     
-                                    {count > 0 && <rect x={xPos - width/2} y={220 - barHeight} width={width} height={barHeight} fill="url(#barGrad)" rx="4" className="transition-all duration-300 opacity-60 group-hover:opacity-100 group-hover:fill-cyan-400" />}
+                                    {/* The Bar */}
+                                    {count > 0 && <rect x={xPos - width/2} y={yPos} width={width} height={barHeight} fill="url(#barGrad)" rx="4" className="opacity-60 transition-all duration-300 group-hover:opacity-100 group-hover:fill-cyan-400" />}
                                     
-                                    {/* PURE SVG TOOLTIP (FIXES SQUISHING) */}
-                                    <g className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                        <rect x={xPos - 40} y={tooltipY - 25} width="80" height="30" rx="6" fill="white" className="shadow-xl" />
-                                        <text x={xPos} y={tooltipY - 6} textAnchor="middle" fill="black" fontSize="12" fontWeight="900" fontFamily="sans-serif">
+                                    {/* THE NEW TOOLTIP (Native SVG) */}
+                                    <g className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                                        {/* Tooltip Background Pill */}
+                                        <rect 
+                                            x={xPos - 40} 
+                                            y={yPos - 40} 
+                                            width="80" 
+                                            height="30" 
+                                            rx="6" 
+                                            fill="white" 
+                                            stroke="#e4e4e7" 
+                                            strokeWidth="1"
+                                        />
+                                        {/* Tooltip Text (Perfectly Centered) */}
+                                        <text 
+                                            x={xPos} 
+                                            y={yPos - 25} 
+                                            textAnchor="middle" 
+                                            dominantBaseline="middle" 
+                                            fill="black" 
+                                            fontSize="13" 
+                                            fontWeight="900" 
+                                            style={{ textShadow: 'none' }}
+                                        >
                                             ${count.toLocaleString()}
                                         </text>
+                                        {/* Little Triangle/Arrow at bottom */}
+                                        <path d={`M ${xPos} ${yPos - 8} L ${xPos - 6} ${yPos - 10} L ${xPos + 6} ${yPos - 10} Z`} fill="white" />
                                     </g>
                                 </g>
                             );
                         })}
 
-                        <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} style={{ vectorEffect: 'non-scaling-stroke', filter: 'url(#glow)' }} className="pointer-events-none opacity-90" />
+                        {/* Neon Trend Line */}
+                        <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} style={{ filter: 'url(#glow)' }} className="pointer-events-none opacity-90" />
                     </svg>
 
+                    {/* X-Axis Labels */}
                     <div className="absolute inset-x-0 bottom-0 flex justify-between px-2">
                         {trend.filter((_, i) => i % Math.ceil(trend.length / 8) === 0).map(([date], i) => (
-                            <span key={i} className="text-[12px] font-bold text-zinc-500 uppercase">{date}</span>
+                            <span key={i} className="text-[10px] font-bold text-zinc-500 uppercase">{date}</span>
                         ))}
                     </div>
                 </div>

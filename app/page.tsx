@@ -137,7 +137,8 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 
   const dayMap = new Map<string, number>();
   for (let d = new Date(graphStart); d <= graphEnd; d.setDate(d.getDate() + 1)) {
-      dayMap.set(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 0);
+      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      dayMap.set(label, 0);
   }
   performanceData.forEach(d => {
     const day = new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -146,18 +147,18 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const trend = Array.from(dayMap.entries());
   const maxCash = Math.max(...trend.map(([_, c]) => c), 1);
 
-  // --- RESTORED MISSING CONSTANTS & CALCULATION ---
+  // --- CHART CONSTANTS ---
   const CHART_HEIGHT = 220;
   const CHART_WIDTH = 1000;
   const BAR_MAX_HEIGHT = 180;
 
+  // --- RESTORED LINE POINTS CALCULATION (Fixes compile error) ---
   const linePoints: string[] = [];
   trend.forEach(([_, count], i) => {
-      const x = (i / (trend.length - 1 || 1)) * CHART_WIDTH + (CHART_WIDTH / trend.length / 2); // Center of bar
+      const x = (i / (trend.length - 1 || 1)) * CHART_WIDTH + (CHART_WIDTH / (trend.length || 1)) / 2; // Center of bar
       const y = CHART_HEIGHT - ((count / maxCash) * BAR_MAX_HEIGHT);
       linePoints.push(`${x},${y}`);
   });
-  // -----------------------------------------------
 
   const platforms = Array.from(new Set(allRawData.map(d => d.platform))).filter(Boolean) as string[];
   const closers = Array.from(new Set(allRawData.map(d => d.closer))).filter(Boolean) as string[];
@@ -187,10 +188,10 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
         {/* MAIN DASHBOARD */}
         <div className="space-y-6 relative z-10">
             
-            {/* ROW 1: TOP 3 CARDS */}
+            {/* ROW 1: TOP 3 CARDS (ALIGNED) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
-                {/* 1. Net Cash */}
+                {/* 1. Net Cash (Standard) */}
                 <HeroCard 
                     label="Net Cash Collected" 
                     value={`$${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}`} 
@@ -200,37 +201,39 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     shadow="shadow-lg shadow-cyan-900/20"
                 />
 
-                 {/* 2. Total Revenue (Breakdown on TOP) */}
+                 {/* 2. Total Revenue (With Footer Pills) */}
                 <div className="relative group overflow-hidden bg-zinc-900/40 border border-emerald-500/40 p-8 rounded-3xl font-sans shadow-lg shadow-emerald-900/20">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/40 to-teal-900/20 opacity-60" />
-                    
-                    <div className="relative z-10 h-full flex flex-col justify-start gap-4">
-                         <div className="flex justify-between items-start">
+                    <div className="relative z-10 h-full flex flex-col justify-start"> {/* STACK FROM TOP */}
+                         
+                         {/* Header */}
+                         <div className="flex justify-between items-start mb-4">
                             <p className="text-xs font-black text-zinc-300 uppercase tracking-widest">Total Revenue</p>
                             <TrendingUp size={24} className="text-emerald-400" />
                         </div>
 
-                        {/* Breakdown moved UP */}
-                        <div className="flex items-center gap-4">
+                        {/* Main Number (Same position as others) */}
+                        <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums mb-6">
+                             ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                        </h2>
+
+                        {/* Supplemental Info (At Bottom) */}
+                        <div className="flex items-center gap-4 mt-auto">
                             <div className="flex items-center gap-1.5">
                                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
                                 <span className="text-[9px] font-bold uppercase text-emerald-300">New Cash:</span>
-                                <span className="text-sm font-black text-white tabular-nums">${newCash.toLocaleString()}</span>
+                                <span className="text-xs font-black text-white tabular-nums">${newCash.toLocaleString()}</span>
                             </div>
                              <div className="flex items-center gap-1.5">
                                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
                                 <span className="text-[9px] font-bold uppercase text-cyan-300">MRR:</span>
-                                <span className="text-sm font-black text-white tabular-nums">${mrrCash.toLocaleString()}</span>
+                                <span className="text-xs font-black text-white tabular-nums">${mrrCash.toLocaleString()}</span>
                             </div>
                         </div>
-
-                        <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">
-                             ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
-                        </h2>
                     </div>
                 </div>
 
-                 {/* 3. Close Rate */}
+                 {/* 3. Close Rate (Standard) */}
                  <HeroCard 
                     label="Close Rate (Taken to Closed)" 
                     value={`${closeRate.toFixed(1)}%`} 
@@ -253,7 +256,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 <StatBox label="Cash / Close" value={`$${avgCashClose.toFixed(0)}`} highlight />
             </div>
 
-            {/* ROW 3: CASH COLLECTED GRAPH (PURE SVG TOOLTIPS) */}
+            {/* ROW 3: CASH COLLECTED GRAPH (SVG TOOLTIPS) */}
             <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-6 shadow-inner relative overflow-hidden h-[340px]">
                 <div className="flex items-center justify-between mb-8 relative z-20">
                     <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Collected</h3>
@@ -283,21 +286,24 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                         
                         {trend.map(([date, count], i) => {
                             const barHeight = (count / maxCash) * BAR_MAX_HEIGHT;
-                            const xPos = (i / (trend.length - 1 || 1)) * CHART_WIDTH;
+                            const xPos = (i / (trend.length - 1 || 1)) * CHART_WIDTH + (CHART_WIDTH / (trend.length || 1)) / 2 - ((CHART_WIDTH / (trend.length || 1)) * 0.8) / 2;
                             const width = (CHART_WIDTH / (trend.length || 1)) * 0.8;
                             const yPos = CHART_HEIGHT - barHeight;
+                            
+                            // Center X for Text
+                            const centerX = xPos + width / 2;
 
                             return (
                                 <g key={i} className="group cursor-crosshair">
-                                    <rect x={xPos - width} y={0} width={width * 2} height={CHART_HEIGHT} fill="transparent" />
-                                    {count > 0 && <rect x={xPos - width/2} y={yPos} width={width} height={barHeight} fill="url(#barGrad)" rx="4" className="opacity-60 transition-all duration-300 group-hover:opacity-100 group-hover:fill-cyan-400" />}
+                                    <rect x={xPos} y={0} width={width} height={CHART_HEIGHT} fill="transparent" />
+                                    {count > 0 && <rect x={xPos} y={yPos} width={width} height={barHeight} fill="url(#barGrad)" rx="4" className="opacity-60 transition-all duration-300 group-hover:opacity-100 group-hover:fill-cyan-400" />}
                                     
                                     <g className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                                        <rect x={xPos - 40} y={yPos - 40} width="80" height="30" rx="6" fill="white" stroke="#e4e4e7" strokeWidth="1"/>
-                                        <text x={xPos} y={yPos - 25} textAnchor="middle" dominantBaseline="middle" fill="black" fontSize="13" fontWeight="900" style={{ textShadow: 'none' }}>
+                                        <rect x={centerX - 40} y={yPos - 40} width="80" height="30" rx="6" fill="white" stroke="#e4e4e7" strokeWidth="1"/>
+                                        <text x={centerX} y={yPos - 25} textAnchor="middle" dominantBaseline="middle" fill="black" fontSize="13" fontWeight="900" style={{ textShadow: 'none' }}>
                                             ${count.toLocaleString()}
                                         </text>
-                                        <path d={`M ${xPos} ${yPos - 8} L ${xPos - 6} ${yPos - 10} L ${xPos + 6} ${yPos - 10} Z`} fill="white" />
+                                        <path d={`M ${centerX} ${yPos - 8} L ${centerX - 6} ${yPos - 10} L ${centerX + 6} ${yPos - 10} Z`} fill="white" />
                                     </g>
                                 </g>
                             );
@@ -349,12 +355,13 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 }
 
 // --- COMPONENTS ---
+// Aligned Hero Card
 function HeroCard({ label, value, icon, gradient, borderColor, shadow }: any) {
     return (
         <div className={`relative group overflow-hidden bg-zinc-900/40 border ${borderColor} p-8 rounded-3xl font-sans ${shadow}`}>
             <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-60`} />
-            <div className="relative z-10 h-full flex flex-col justify-start gap-4">
-                 <div className="flex justify-between items-start">
+            <div className="relative z-10 h-full flex flex-col justify-start"> {/* Stack top-down */}
+                 <div className="flex justify-between items-start mb-4">
                     <p className="text-xs font-black text-zinc-300 uppercase tracking-widest">{label}</p>
                     {icon}
                 </div>

@@ -5,8 +5,8 @@ import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
 import Filters from './Filters';
 
-// --- HELPER 1: FETCH SALES DATA ---
-async function getSalesData() {
+// --- 1. HELPER: FETCH SALES DATA ---
+async function getSheetData() {
   try {
     const serviceAccountAuth = new JWT({
       email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
@@ -37,10 +37,13 @@ async function getSalesData() {
         revenue: parseFloat(getVal('Revenue Generated')?.toString().replace(/[$, ]/g, '')) || 0,
       };
     });
-  } catch (error) { console.error("Sales Fetch Error:", error); return []; }
+  } catch (error) { 
+    console.error("Sheet Fetch Error:", error); 
+    return []; 
+  }
 }
 
-// --- HELPER 2: FETCH APPLICATIONS (LEADS) ---
+// --- 2. HELPER: FETCH APPLICATIONS COUNT ---
 async function getApplicationsCount(start: Date | null, end: Date | null) {
     try {
         const serviceAccountAuth = new JWT({
@@ -53,7 +56,6 @@ async function getApplicationsCount(start: Date | null, end: Date | null) {
         const sheet = doc.sheetsByIndex[0];
         const rows = await sheet.getRows();
         
-        // Count applications within date range
         return rows.filter(row => {
             const rawDate = row.get('submitted at') || row.get('date');
             if (!rawDate) return false;
@@ -71,19 +73,18 @@ async function getApplicationsCount(start: Date | null, end: Date | null) {
 
 export default async function ValhallaDashboard({ searchParams }: { searchParams: Promise<any> }) {
   const params = await searchParams;
-  const allSalesData = await getSalesData();
+  const allRawData = await getSheetData();
 
-  // DATE RANGE LOGIC
   const today = new Date();
   const start = params.start ? new Date(params.start) : null;
   const end = params.end ? new Date(params.end) : null;
   if (end) end.setHours(23, 59, 59, 999);
 
-  // 1. GET TOTAL APPLICATIONS (LEADS)
+  // FETCH APPLICATIONS
   const totalApplications = await getApplicationsCount(start, end);
 
-  // 2. FILTER SALES DATA
-  const performanceData = allSalesData.filter(d => {
+  // MAIN FILTERING
+  const performanceData = allRawData.filter(d => {
     if (!d.date) return false;
     const dDate = new Date(d.date);
     if (start && dDate < start) return false;
@@ -94,27 +95,22 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
     return true;
   });
 
-  // 3. CORE METRICS
   const totalCash = performanceData.reduce((acc, curr) => acc + curr.cash, 0);
-  
-  // Exclude MRR from "New Deal" metrics if needed, or keep them. 
-  // Based on your sheet, MRR is an outcome.
+
+  // NEW: Calculate MRR vs New Cash
   const mrrData = performanceData.filter(d => d.outcome.toLowerCase().includes('mrr'));
   const mrrCash = mrrData.reduce((acc, curr) => acc + curr.cash, 0);
-  const newCashCollected = totalCash - mrrCash;
-
-  // Appointments (Exclude tests/junk)
+  const newCash = totalCash - mrrCash;
+  
   const appointments = performanceData.filter(d => {
     const out = d.outcome.toLowerCase();
     const prospect = d.prospect.toLowerCase();
-    return !prospect.includes('test');
+    return !out.includes('mrr') && !out.includes('downsell') && !prospect.includes('test');
   });
 
   const totalRev = appointments.reduce((acc, curr) => acc + curr.revenue, 0);
 
-  // Funnel Metrics
   const callsDue = appointments.length;
-  
   const callsTaken = appointments.filter(d => 
     !['no show', 'rescheduled', 'cancelled'].some(x => d.outcome.toLowerCase().includes(x))
   ).length;
@@ -123,16 +119,18 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
     ['closed', 'deposit collected', 'paid', 'full pay'].some(x => d.outcome.toLowerCase().includes(x))
   ).length;
   
-  // Rates
   const showRate = callsDue > 0 ? (callsTaken / callsDue) * 100 : 0;
   const closeRate = callsTaken > 0 ? (callsClosed / callsTaken) * 100 : 0;
   
-  // Averages
-  const avgCashCall = callsTaken > 0 ? totalCash / callsTaken : 0;
+  const avgCashAppt = callsDue > 0 ? totalCash / callsDue : 0;
   const avgCashClose = callsClosed > 0 ? totalCash / callsClosed : 0;
-  const avgCashApp = totalApplications > 0 ? totalCash / totalApplications : 0;
+  const avgCashApplication = totalApplications > 0 ? totalCash / totalApplications : 0;
 
-  // 4. GRAPH DATA & SPARKLINES
+  const recentAcquisitions = appointments
+    .filter(d => d.cash > 0 && !['no show', 'cancelled', 'rescheduled'].some(o => d.outcome.toLowerCase().includes(o)))
+    .slice(0, 5); 
+
+  // GRAPH LOGIC
   let graphStart = start;
   let graphEnd = end;
 
@@ -162,202 +160,174 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 
   const trend = Array.from(dayMap.entries());
   const maxCash = Math.max(...trend.map(([_, c]) => c), 1);
-  
-  // Generate simple sparkline path
-  const sparklinePoints = trend.map(([_, val], i) => {
-      const x = (i / (trend.length - 1)) * 100;
-      const y = 100 - (val / maxCash) * 100;
-      return `${x},${y || 100}`;
-  }).join(' ');
 
-  // Filters
-  const platforms = Array.from(new Set(allSalesData.map(d => d.platform))).filter(Boolean) as string[];
-  const closers = Array.from(new Set(allSalesData.map(d => d.closer))).filter(Boolean) as string[];
-  const setters = Array.from(new Set(allSalesData.map(d => d.setter))).filter(Boolean) as string[];
-
-  // Recent Wins (Exclude $0 or No Shows)
-  const recentWins = appointments
-    .filter(d => d.cash > 0 && !['no show', 'cancelled', 'rescheduled'].some(o => d.outcome.toLowerCase().includes(o)))
-    .slice(0, 5);
+  const platforms = Array.from(new Set(allRawData.map(d => d.platform))).filter(Boolean) as string[];
+  const closers = Array.from(new Set(allRawData.map(d => d.closer))).filter(Boolean) as string[];
+  const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
 
   return (
-    <div className="min-h-screen p-6 md:p-8 bg-[#050505] text-white">
-      <div className="max-w-[1800px] mx-auto space-y-8">
+    <div className="min-h-screen p-6 md:p-10">
+      <div className="max-w-[1600px] mx-auto">
         
         {/* HEADER & FILTERS */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 relative z-[100]">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-12 relative z-[100]">
             <div>
-                <h1 className="text-3xl font-black tracking-tighter text-white uppercase mb-1">Dashboard</h1>
-                <p className="text-[11px] text-zinc-500 font-bold uppercase tracking-widest">Monitor your key metrics and performance</p>
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Global Command</span>
+                    <div className="w-1 h-1 rounded-full bg-zinc-700" />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-400">Sales Performance</span>
+                </div>
+                <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Valhalla <span className="text-cyan-500">OS</span></h1>
             </div>
             
-            <div className="bg-zinc-900/50 border border-zinc-800/50 backdrop-blur-md p-2 pl-6 rounded-xl flex flex-wrap items-center gap-4">
+            <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-2 pl-6 rounded-2xl flex flex-wrap items-center gap-4">
+                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
                 <Filters platforms={platforms} closers={closers} setters={setters} />
             </div>
         </div>
 
-        {/* ROW 1: THE BIG THREE (With Sparklines) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Cash Collected */}
-            <div className="bg-zinc-900/40 border border-zinc-800/60 p-6 rounded-2xl relative overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 to-transparent opacity-50" />
-                <div className="relative z-10 flex justify-between items-end">
-                    <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="p-1.5 bg-blue-500/10 rounded-lg border border-blue-500/20 text-blue-500">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        {/* MAIN DASHBOARD CONTENT */}
+        <div className="space-y-6 relative z-10">
+            
+            {/* KPI CARDS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="relative group overflow-hidden bg-gradient-to-br from-cyan-600 to-blue-700 p-8 rounded-3xl shadow-2xl shadow-cyan-900/20">
+                    <p className="text-xs font-black text-white/60 uppercase mb-1 tracking-widest">Net Cash Collected</p>
+                    <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">
+                        ${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                    </h2>
+                </div>
+
+                <div className="bg-zinc-900/40 border border-zinc-800/50 p-8 rounded-3xl">
+                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-1 tracking-widest">Total Revenue</p>
+                    <h3 className="text-5xl font-black text-white tracking-tighter italic tabular-nums">
+                        ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                    </h3>
+                </div>
+            </div>
+
+            {/* METRICS STRIP */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-white" />
+                <StatBox label="Close Rate" value={`${closeRate.toFixed(1)}%`} color="text-white" />
+                <StatBox label="Appointments" value={appointments.length} color="text-white" />
+                <StatBox label="Acquisitions" value={callsClosed} color="text-cyan-500" />
+            </div>
+
+            {/* CASH VELOCITY GRAPH */}
+            <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8 shadow-inner relative overflow-hidden">
+                <div className="flex items-center justify-between mb-10 relative z-10">
+                    <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Velocity</h3>
+                    <span className="text-[10px] font-bold text-zinc-600 italic">Historical Settlement</span>
+                </div>
+
+                <div className="flex h-[320px] w-full relative pt-10 px-4">
+                    <div className="absolute inset-x-0 top-10 bottom-12 flex flex-col justify-between pointer-events-none border-l border-zinc-800/50">
+                        {[1, 0.75, 0.5, 0.25, 0].map((step) => (
+                            <div key={step} className="flex items-center w-full">
+                                <span className="absolute -left-12 text-[9px] font-bold text-zinc-700 w-10 text-right">
+                                    ${((maxCash * step) / 1000).toFixed(1)}k
+                                </span>
+                                <div className="w-full border-t border-zinc-800/30" />
                             </div>
-                            <span className="text-[11px] font-black uppercase tracking-widest text-zinc-400">Cash Collected</span>
-                        </div>
-                        <h2 className="text-4xl font-black tracking-tight text-white">${totalCash.toLocaleString()}</h2>
+                        ))}
                     </div>
-                    {/* Sparkline */}
-                    <div className="w-24 h-12">
-                         <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" className="overflow-visible">
-                            <polyline points={sparklinePoints} fill="none" stroke="#3b82f6" strokeWidth="4" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-                         </svg>
-                    </div>
-                </div>
-            </div>
 
-            {/* Revenue */}
-            <div className="bg-zinc-900/40 border border-zinc-800/60 p-6 rounded-2xl relative overflow-hidden group">
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/20 to-transparent opacity-50" />
-                <div className="relative z-10 flex justify-between items-end">
-                    <div>
-                        <div className="flex items-center gap-2 mb-2">
-                             <div className="p-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-emerald-500">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                            </div>
-                            <span className="text-[11px] font-black uppercase tracking-widest text-zinc-400">Revenue</span>
-                        </div>
-                        <h2 className="text-4xl font-black tracking-tight text-white">${totalRev.toLocaleString()}</h2>
-                    </div>
-                    {/* Sparkline (Reused for demo visual) */}
-                    <div className="w-24 h-12">
-                         <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" className="overflow-visible">
-                            <polyline points={sparklinePoints} fill="none" stroke="#10b981" strokeWidth="4" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-                         </svg>
-                    </div>
-                </div>
-            </div>
-
-            {/* Close Rate */}
-            <div className="bg-zinc-900/40 border border-zinc-800/60 p-6 rounded-2xl relative overflow-hidden group">
-                 <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/10 to-transparent opacity-50" />
-                 <div className="relative z-10 flex justify-between items-end">
-                    <div>
-                        <div className="flex items-center gap-2 mb-2">
-                             <div className="p-1.5 bg-cyan-500/10 rounded-lg border border-cyan-500/20 text-cyan-500">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-                            </div>
-                            <span className="text-[11px] font-black uppercase tracking-widest text-zinc-400">Close Rate</span>
-                        </div>
-                        <h2 className="text-4xl font-black tracking-tight text-white">{closeRate.toFixed(1)}%</h2>
-                    </div>
-                     <div className="w-24 h-12">
-                         <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" className="overflow-visible">
-                            <polyline points={sparklinePoints} fill="none" stroke="#06b6d4" strokeWidth="4" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-                         </svg>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {/* ROW 2: FUNNEL METRICS */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <MetricCard label="Show Rate" value={`${showRate.toFixed(1)}%`} />
-            <MetricCard label="Calls Due" value={callsDue} />
-            <MetricCard label="Calls Taken" value={callsTaken} />
-            <MetricCard label="Calls Closed" value={callsClosed} />
-        </div>
-
-        {/* ROW 3: EFFICIENCY METRICS */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <MetricCard label="Avg. Cash / Call" value={`$${avgCashCall.toFixed(0)}`} />
-            <MetricCard label="Avg. Cash / Close" value={`$${avgCashClose.toFixed(0)}`} />
-            <MetricCard label="Avg. Cash / App" value={`$${avgCashApp.toFixed(0)}`} />
-            {/* Placeholder for alignment or Total Applications */}
-             <MetricCard label="Total Applications" value={totalApplications} />
-        </div>
-
-        {/* ROW 4: REVENUE BREAKDOWN */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-zinc-900/20 border border-zinc-800 p-6 rounded-2xl">
-                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">New Cash Collected</p>
-                <h3 className="text-3xl font-black text-white tracking-tight">${newCashCollected.toLocaleString()}</h3>
-                <p className="text-[9px] text-zinc-600 mt-2">Excludes recurring revenue</p>
-            </div>
-            <div className="bg-zinc-900/20 border border-zinc-800 p-6 rounded-2xl">
-                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">MRR Collected</p>
-                <h3 className="text-3xl font-black text-white tracking-tight">${mrrCash.toLocaleString()}</h3>
-                <p className="text-[9px] text-zinc-600 mt-2">Monthly recurring revenue</p>
-            </div>
-            <div className="bg-zinc-900/20 border border-zinc-800 p-6 rounded-2xl">
-                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest mb-1">Total Gross Revenue</p>
-                <h3 className="text-3xl font-black text-white tracking-tight">${totalRev.toLocaleString()}</h3>
-                <p className="text-[9px] text-zinc-600 mt-2">Total contract value</p>
-            </div>
-        </div>
-
-        {/* ROW 5: CHARTS & LISTS */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-             {/* Main Chart */}
-            <div className="lg:col-span-2 bg-[#0c0c0c] border border-zinc-800/50 rounded-2xl p-6 relative overflow-hidden">
-                <div className="flex justify-between items-center mb-6">
-                     <h3 className="text-[11px] font-black uppercase text-zinc-400 tracking-widest">Cash Velocity</h3>
-                </div>
-                
-                {/* Reusing your graph logic */}
-                <div className="h-[250px] w-full flex items-end justify-between gap-2">
-                     {trend.map(([date, cash], i) => {
-                            const height = (cash / maxCash) * 100;
+                    <div className="flex flex-1 items-end justify-around gap-2 relative z-10 border-b border-zinc-800/50">
+                        {trend.map(([date, cash], i) => {
+                            const height = (cash / maxCash) * 230;
                             return (
-                                <div key={i} className="flex-1 h-full flex flex-col justify-end group">
-                                    <div 
-                                        className="w-full bg-cyan-600 hover:bg-cyan-400 transition-all rounded-t-sm relative" 
-                                        style={{ height: `${height || 1}%` }}
-                                    >
-                                         <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-white text-black text-[9px] font-bold px-2 py-1 rounded whitespace-nowrap z-20">
+                                <div key={i} className="flex-1 flex flex-col items-center group max-w-[40px] relative">
+                                    <div className="relative w-full">
+                                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-white text-black text-[10px] font-black px-2 py-1 rounded-md shadow-xl whitespace-nowrap z-30 pointer-events-none">
                                             ${cash.toLocaleString()}
                                         </div>
+                                        <div 
+                                            className={`w-full rounded-t-sm transition-all shadow-[0_0_20px_rgba(34,211,238,0.1)] ${cash > 0 ? 'bg-gradient-to-t from-cyan-600 to-cyan-400 group-hover:from-cyan-400 group-hover:to-cyan-300' : 'bg-zinc-800/30'}`}
+                                            style={{ height: `${cash > 0 ? height : 4}px` }} 
+                                        />
                                     </div>
+                                    <span className="absolute -bottom-8 text-[9px] font-black text-zinc-600 uppercase group-hover:text-cyan-400 truncate w-full text-center">
+                                        {date.split(',')[0]}
+                                    </span>
                                 </div>
                             );
                         })}
+                    </div>
                 </div>
+                <div className="absolute left-8 bottom-12 transform -rotate-90 origin-left text-[8px] font-black uppercase tracking-widest text-zinc-700">Price (USD)</div>
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest text-zinc-700">Timeline (Date)</div>
             </div>
 
-            {/* Recent Wins */}
-            <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-2xl p-6">
-                <h3 className="text-[11px] font-black uppercase text-zinc-400 tracking-widest mb-6">Recent Acquisitions</h3>
-                <div className="space-y-4">
-                    {recentWins.length > 0 ? recentWins.map((lead, i) => (
-                        <div key={i} className="flex justify-between items-center border-b border-zinc-800 pb-3">
-                            <div>
-                                <p className="text-xs font-bold text-white uppercase">{lead.prospect}</p>
-                                <p className="text-[9px] text-zinc-500 font-bold uppercase">{lead.outcome}</p>
-                            </div>
-                            <p className="text-sm font-black text-cyan-500 italic">${lead.cash.toLocaleString()}</p>
+            {/* BOTTOM ANALYTICS - NOW WITH NEW METRICS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* UPGRADED EFFICIENCY ANALYTICS */}
+                <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
+                    <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6 text-center">Efficiency Analytics</h3>
+                    <div className="space-y-4">
+                        {/* New Revenue Split */}
+                        <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-zinc-800/50">
+                             <div className="bg-zinc-900/50 p-3 rounded-xl border border-zinc-800/30 text-center">
+                                <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">New Cash</p>
+                                <p className="text-lg font-black text-white">${newCash.toLocaleString()}</p>
+                             </div>
+                             <div className="bg-zinc-900/50 p-3 rounded-xl border border-zinc-800/30 text-center">
+                                <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest">MRR</p>
+                                <p className="text-lg font-black text-white">${mrrCash.toLocaleString()}</p>
+                             </div>
                         </div>
-                    )) : (
-                        <p className="text-[10px] text-zinc-600 uppercase">No recent wins found.</p>
-                    )}
+
+                        {/* Existing + New Metrics */}
+                        <EfficiencyRow label="Total Applications" value={totalApplications.toString()} isCurrency={false} />
+                        <EfficiencyRow label="Avg. Cash / Application" value={avgCashApplication.toFixed(0)} />
+                        <EfficiencyRow label="Avg. Value / Appt" value={avgCashAppt.toFixed(0)} />
+                        <EfficiencyRow label="Avg. Cash / Close" value={avgCashClose.toFixed(0)} />
+                    </div>
+                </div>
+
+                {/* RECENT ACQUISITIONS */}
+                <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
+                    <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6 text-center">Recent Acquisitions</h3>
+                    <div className="space-y-3">
+                        {recentAcquisitions.length > 0 ? recentAcquisitions.map((lead, i) => (
+                            <div key={i} className="flex justify-between items-center border-b border-zinc-800 pb-2">
+                                <div>
+                                    <p className="text-xs font-black uppercase text-white tracking-tight">{lead.prospect}</p>
+                                    <p className="text-[10px] text-zinc-500 font-bold uppercase">{lead.outcome}</p>
+                                </div>
+                                <p className="text-sm font-black text-cyan-500 italic">${lead.cash.toLocaleString()}</p>
+                            </div>
+                        )) : (
+                            <div className="text-center py-6">
+                                <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">No Recent Wins</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
-
       </div>
     </div>
   );
 }
 
-// Simple Card Component for consistency
-function MetricCard({ label, value }: { label: string, value: string | number }) {
+function StatBox({ label, value, color }: { label: string, value: any, color: string }) {
     return (
-        <div className="bg-zinc-900/30 border border-zinc-800/50 p-5 rounded-xl hover:border-zinc-700 transition-colors">
-            <p className="text-[10px] font-black text-zinc-500 uppercase mb-2 tracking-widest">{label}</p>
-            <h3 className="text-2xl font-black text-white tracking-tight">{value}</h3>
+        <div className="bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-3xl transition-all group hover:border-cyan-500/20">
+            <p className="text-[10px] font-black text-zinc-500 uppercase mb-2 tracking-widest text-center">{label}</p>
+            <h3 className={`text-3xl font-black ${color} tracking-tighter tabular-nums text-center`}>{value}</h3>
+        </div>
+    );
+}
+
+function EfficiencyRow({ label, value, isCurrency = true }: { label: string, value: string, isCurrency?: boolean }) {
+    return (
+        <div className="flex items-center justify-between p-4 bg-zinc-900/60 rounded-2xl border border-zinc-800/30 hover:border-cyan-500/20 transition-all">
+            <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">{label}</span>
+            <span className="text-lg font-black text-cyan-500 italic tabular-nums">
+                {isCurrency ? '$' : ''}{value}
+            </span>
         </div>
     );
 }

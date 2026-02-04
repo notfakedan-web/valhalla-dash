@@ -6,7 +6,7 @@ import React from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
 import Filters from './Filters';
-import { TrendingUp, DollarSign, Percent, Users, Phone, CheckCircle2, FileText } from 'lucide-react';
+import { TrendingUp, DollarSign, Percent, Users, Phone, CheckCircle2, FileText, Activity } from 'lucide-react';
 
 // --- HELPER 1: FETCH SALES DATA ---
 async function getSheetData() {
@@ -163,22 +163,21 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
 
   return (
-    <div className="min-h-screen p-6 md:p-10">
+    <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans">
       <div className="max-w-[1600px] mx-auto">
         
         {/* HEADER & FILTERS */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-10 relative z-[100]">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-8 relative z-[100]">
             <div>
-                <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Global Command</span>
-                    <div className="w-1 h-1 rounded-full bg-zinc-700" />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-400">Sales Performance</span>
+                <div className="flex items-center gap-2 mb-1">
+                    <Activity size={16} className="text-cyan-500" />
+                    <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">Executive Overview</span>
                 </div>
-                <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Valhalla <span className="text-cyan-500">OS</span></h1>
+                <h1 className="text-3xl font-bold tracking-tight text-white">Valhalla <span className="text-cyan-500">OS</span></h1>
             </div>
             
-            <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-2 pl-6 rounded-2xl flex flex-wrap items-center gap-4">
-                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
+            <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg flex flex-wrap items-center gap-4 shadow-sm">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2">Filters:</span>
                 <Filters platforms={platforms} closers={closers} setters={setters} />
             </div>
         </div>
@@ -186,55 +185,55 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
         {/* MAIN DASHBOARD */}
         <div className="space-y-6 relative z-10">
             
-            {/* ROW 1: TOP 3 CARDS (BRIGHT & VIBRANT) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* ROW 1: PROFESSIONAL TOP CARDS (Smaller, Cleaner) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 
-                {/* 1. Net Cash (Cyan/Blue Gradient) */}
+                {/* 1. Net Cash */}
                 <HeroCard 
                     label="Net Cash Collected" 
                     value={`$${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}`} 
-                    icon={<DollarSign size={24} className="text-white opacity-80" />} 
-                    gradient="bg-gradient-to-br from-cyan-500 to-blue-600"
-                    shadow="shadow-2xl shadow-cyan-500/20"
+                    icon={<DollarSign size={18} className="text-cyan-400" />}
+                    accentColor="cyan"
                 />
 
-                 {/* 2. Total Revenue (Emerald/Green Gradient) */}
-                <div className={`relative overflow-hidden bg-gradient-to-br from-emerald-500 to-teal-600 p-8 rounded-3xl font-sans shadow-2xl shadow-emerald-500/20 flex flex-col justify-start h-full`}>
-                     <div className="flex justify-between items-start mb-4">
-                        <p className="text-xs font-black text-white/80 uppercase tracking-widest">Total Revenue</p>
-                        <TrendingUp size={24} className="text-white opacity-80" />
-                    </div>
-
-                    <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums mb-6">
-                            ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
-                    </h2>
-
-                    {/* Breakdown Pills (Semi-transparent for bright bg) */}
-                    <div className="flex items-center gap-4 mt-auto">
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-black/20 rounded-lg">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-300"></div>
-                            <span className="text-[9px] font-bold uppercase text-white/90">New Cash:</span>
-                            <span className="text-xs font-black text-white tabular-nums">${newCash.toLocaleString()}</span>
+                 {/* 2. Total Revenue (With compact breakdown) */}
+                <div className="relative overflow-hidden bg-zinc-900/40 border border-emerald-500/20 backdrop-blur-sm p-6 rounded-2xl shadow-sm flex flex-col justify-between h-full">
+                     <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-emerald-500/50 to-transparent"></div>
+                     <div>
+                        <div className="flex justify-between items-start mb-3">
+                            <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Total Revenue</p>
+                            <TrendingUp size={18} className="text-emerald-400" />
                         </div>
-                         <div className="flex items-center gap-2 px-3 py-1.5 bg-black/20 rounded-lg">
-                            <div className="w-1.5 h-1.5 rounded-full bg-cyan-300"></div>
-                            <span className="text-[9px] font-bold uppercase text-white/90">MRR:</span>
-                            <span className="text-xs font-black text-white tabular-nums">${mrrCash.toLocaleString()}</span>
+                        <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums mb-4">
+                                ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                        </h2>
+                     </div>
+
+                    {/* Professional Breakdown */}
+                    <div className="flex items-center gap-4 pt-3 border-t border-zinc-800/50 text-xs">
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-sm bg-emerald-500"></div>
+                            <span className="text-zinc-400">New:</span>
+                            <span className="font-bold text-white tabular-nums">${newCash.toLocaleString()}</span>
+                        </div>
+                         <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-sm bg-cyan-500"></div>
+                            <span className="text-zinc-400">MRR:</span>
+                            <span className="font-bold text-white tabular-nums">${mrrCash.toLocaleString()}</span>
                         </div>
                     </div>
                 </div>
 
-                 {/* 3. Close Rate (Purple/Pink Gradient) */}
+                 {/* 3. Close Rate */}
                  <HeroCard 
-                    label="Close Rate (Taken to Closed)" 
+                    label="Close Rate (Taken)" 
                     value={`${closeRate.toFixed(1)}%`} 
-                    icon={<Percent size={24} className="text-white opacity-80" />} 
-                    gradient="bg-gradient-to-br from-purple-500 to-pink-600"
-                    shadow="shadow-2xl shadow-purple-500/20"
+                    icon={<Percent size={18} className="text-purple-400" />} 
+                    accentColor="purple"
                 />
             </div>
 
-            {/* ROW 2: ANALYTICS GRID */}
+            {/* ROW 2: ANALYTICS GRID (Cleaner Borders) */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} icon={<Users size={14}/>} />
                 <StatBox label="Calls Due" value={callsDue} icon={<Phone size={14}/>} />
@@ -246,21 +245,21 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 <StatBox label="Cash / Close" value={`$${avgCashClose.toFixed(0)}`} highlight />
             </div>
 
-            {/* ROW 3: CASH COLLECTED GRAPH */}
-            <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-6 shadow-inner relative overflow-hidden h-[340px]">
+            {/* ROW 3: CASH COLLECTED GRAPH (Professional, No Neon Glow) */}
+            <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm relative overflow-hidden h-[320px]">
                 <div className="flex items-center justify-between mb-8 relative z-20">
-                    <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Collected</h3>
+                    <h3 className="text-xs font-bold uppercase text-zinc-400 tracking-widest">Cash Flow Trend</h3>
                     <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
-                        <span className="text-[10px] font-bold text-zinc-600 italic">Daily Trend</span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+                        <span className="text-[10px] font-medium text-zinc-500">Daily Collections</span>
                     </div>
                 </div>
 
-                <div className="h-[220px] w-full relative z-10 select-none">
+                <div className="h-[200px] w-full relative z-10 select-none">
                     <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
                         {[1, 0.5, 0].map(step => (
                             <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
-                                <span className="absolute -left-8 -top-2 text-[10px] font-bold text-zinc-500 w-6 text-right">
+                                <span className="absolute -left-8 -top-2 text-[10px] font-medium text-zinc-600 w-6 text-right">
                                     ${((maxCash * step) / 1000).toFixed(0)}k
                                 </span>
                             </div>
@@ -269,9 +268,10 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 
                     <svg className="absolute inset-0 w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
                         <defs>
-                            <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.9"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.2"/></linearGradient>
-                            <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#fff" /><stop offset="100%" stopColor="#22d3ee" /></linearGradient>
-                            <filter id="glow"><feGaussianBlur stdDeviation="3" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                            {/* Cleaner Gradients */}
+                            <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.6"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1"/></linearGradient>
+                            <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#22d3ee" /><stop offset="100%" stopColor="#0ea5e9" /></linearGradient>
+                            {/* Removed Glow Filter for professionalism */}
                         </defs>
                         
                         {trend.map(([date, count], i) => {
@@ -279,60 +279,60 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                             const xPos = (i / (trend.length - 1 || 1)) * CHART_WIDTH + (CHART_WIDTH / (trend.length || 1)) / 2 - ((CHART_WIDTH / (trend.length || 1)) * 0.8) / 2;
                             const width = (CHART_WIDTH / (trend.length || 1)) * 0.8;
                             const yPos = CHART_HEIGHT - barHeight;
-                            
                             const centerX = xPos + width / 2;
 
                             return (
                                 <g key={i} className="group cursor-crosshair">
                                     <rect x={xPos} y={0} width={width} height={CHART_HEIGHT} fill="transparent" />
-                                    {count > 0 && <rect x={xPos} y={yPos} width={width} height={barHeight} fill="url(#barGrad)" rx="4" className="opacity-60 transition-all duration-300 group-hover:opacity-100 group-hover:fill-cyan-400" />}
+                                    {count > 0 && <rect x={xPos} y={yPos} width={width} height={barHeight} fill="url(#barGrad)" rx="2" className="opacity-40 transition-all duration-300 group-hover:opacity-80" />}
                                     
+                                    {/* Professional SVG Tooltip */}
                                     <g className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                                        <rect x={centerX - 40} y={yPos - 40} width="80" height="30" rx="6" fill="white" stroke="#e4e4e7" strokeWidth="1"/>
-                                        <text x={centerX} y={yPos - 25} textAnchor="middle" dominantBaseline="middle" fill="black" fontSize="13" fontWeight="900" style={{ textShadow: 'none' }}>
+                                        <rect x={centerX - 35} y={yPos - 35} width="70" height="26" rx="4" fill="#18181b" stroke="#27272a" strokeWidth="1" className="shadow-lg"/>
+                                        <text x={centerX} y={yPos - 22} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="11" fontWeight="600">
                                             ${count.toLocaleString()}
                                         </text>
-                                        <path d={`M ${centerX} ${yPos - 8} L ${centerX - 6} ${yPos - 10} L ${centerX + 6} ${yPos - 10} Z`} fill="white" />
                                     </g>
                                 </g>
                             );
                         })}
-
-                        <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} style={{ filter: 'url(#glow)' }} className="pointer-events-none opacity-90" />
+                        {/* Clean Line - No Glow */}
+                        <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} className="pointer-events-none opacity-90" />
                     </svg>
 
                     <div className="absolute inset-x-0 bottom-0 flex justify-between px-2">
                         {trend.filter((_, i) => i % Math.ceil(trend.length / 8) === 0).map(([date], i) => (
-                            <span key={i} className="text-[10px] font-bold text-zinc-500 uppercase">{date}</span>
+                            <span key={i} className="text-[10px] font-medium text-zinc-600 uppercase">{date}</span>
                         ))}
                     </div>
                 </div>
             </div>
 
             {/* ROW 4: RECENT CALLS */}
-            <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl overflow-hidden">
-                <div className="p-6 border-b border-zinc-800/50 bg-zinc-900/20 flex justify-between items-center">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400">Recent Call Log</h3>
-                    <span className="text-[10px] font-bold text-zinc-600 italic">Latest Activity</span>
+            <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-sm">
+                <div className="p-4 border-b border-zinc-800/50 flex justify-between items-center bg-zinc-900/20">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Recent Activity Log</h3>
                 </div>
-                <div className="p-6 overflow-x-auto">
-                     <div className="min-w-[800px] space-y-2">
-                        <div className="grid grid-cols-6 text-[9px] font-black uppercase text-zinc-500 tracking-widest px-4 mb-2">
+                <div className="p-4 overflow-x-auto">
+                     <div className="min-w-[800px]">
+                        <div className="grid grid-cols-6 text-[10px] font-medium uppercase text-zinc-500 tracking-wider px-4 mb-3">
                             <div className="col-span-2">Prospect</div>
                             <div>Outcome</div>
                             <div>Closer</div>
                             <div>Date</div>
                             <div className="text-right">Cash collected</div>
                         </div>
+                        <div className="space-y-1">
                         {recentCalls.map((call, i) => (
-                            <div key={i} className="grid grid-cols-6 items-center p-4 bg-zinc-900/30 rounded-xl border border-zinc-800/30 hover:border-zinc-700 transition-all group">
-                                <div className="col-span-2 text-[11px] font-bold text-white truncate pr-4">{call.prospect}</div>
-                                <div><span className={`text-[9px] font-black uppercase px-2 py-1 rounded-md border ${getOutcomeStyle(call.outcome)}`}>{call.outcome}</span></div>
-                                <div className="text-[10px] font-medium text-zinc-400">{call.closer}</div>
-                                <div className="text-[10px] font-mono text-zinc-500">{new Date(call.date).toLocaleDateString()}</div>
-                                <div className={`text-right text-[11px] font-black tabular-nums ${call.cash > 0 ? 'text-cyan-400' : 'text-zinc-600'}`}>${call.cash.toLocaleString()}</div>
+                            <div key={i} className="grid grid-cols-6 items-center p-3 bg-zinc-800/20 rounded-lg border border-transparent hover:border-zinc-700/50 transition-all group text-xs">
+                                <div className="col-span-2 font-medium text-zinc-200 truncate pr-4">{call.prospect}</div>
+                                <div><span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full border ${getOutcomeStyle(call.outcome)}`}>{call.outcome}</span></div>
+                                <div className="text-zinc-400">{call.closer}</div>
+                                <div className="text-zinc-500 tabular-nums">{new Date(call.date).toLocaleDateString()}</div>
+                                <div className={`text-right font-bold tabular-nums ${call.cash > 0 ? 'text-cyan-400' : 'text-zinc-500'}`}>${call.cash.toLocaleString()}</div>
                             </div>
                         ))}
+                        </div>
                      </div>
                 </div>
             </div>
@@ -344,35 +344,45 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 }
 
 // --- COMPONENTS ---
-// Updated Bright Hero Card
-function HeroCard({ label, value, icon, gradient, shadow }: any) {
+// Professional Hero Card (Smaller, Cleaner)
+function HeroCard({ label, value, icon, accentColor }: any) {
+    const colorMap: any = {
+        cyan: 'from-cyan-500/50 to-transparent border-cyan-500/20',
+        purple: 'from-purple-500/50 to-transparent border-purple-500/20',
+    };
+    const accentClass = colorMap[accentColor] || 'from-zinc-500/50 to-transparent border-zinc-500/20';
+
     return (
-        <div className={`relative overflow-hidden ${gradient} p-8 rounded-3xl font-sans ${shadow} flex flex-col justify-start h-full`}>
-             <div className="flex justify-between items-start mb-4">
-                <p className="text-xs font-black text-white/80 uppercase tracking-widest">{label}</p>
+        <div className={`relative overflow-hidden bg-zinc-900/40 border ${accentClass.split(' ')[2]} backdrop-blur-sm p-6 rounded-2xl shadow-sm flex flex-col justify-between h-full`}>
+            {/* Subtle top accent gradient */}
+            <div className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${accentClass.split(' ')[0]} ${accentClass.split(' ')[1]}`}></div>
+            
+             <div className="flex justify-between items-start mb-3">
+                <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">{label}</p>
                 {icon}
             </div>
-            <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">{value}</h2>
+            <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums">{value}</h2>
         </div>
     )
 }
 
 function StatBox({ label, value, icon, highlight = false }: { label: string, value: any, icon?: React.ReactNode, highlight?: boolean }) {
     return (
-        <div className={`bg-zinc-900/40 border ${highlight ? 'border-cyan-500/30 bg-cyan-900/10' : 'border-zinc-800/50'} p-5 rounded-2xl transition-all group hover:border-cyan-500/20 flex flex-col justify-between gap-3 font-sans`}>
+        <div className={`bg-zinc-900/40 border ${highlight ? 'border-cyan-500/20 bg-cyan-500/5' : 'border-zinc-800/80'} backdrop-blur-sm p-4 rounded-xl transition-all hover:border-cyan-500/20 flex flex-col gap-2 font-sans shadow-sm`}>
             <div className="flex items-center justify-between">
-                 <p className={`text-[10px] font-black uppercase tracking-widest ${highlight ? 'text-cyan-300' : 'text-zinc-500'}`}>{label}</p>
-                 {icon && <div className={`${highlight ? 'text-cyan-400' : 'text-zinc-600'} opacity-70`}>{icon}</div>}
+                 <p className={`text-[10px] font-bold uppercase tracking-wider ${highlight ? 'text-cyan-400' : 'text-zinc-500'}`}>{label}</p>
+                 {icon && <div className={`${highlight ? 'text-cyan-500' : 'text-zinc-600'} opacity-80`}>{icon}</div>}
             </div>
-            <h3 className={`text-2xl font-black tracking-tighter tabular-nums ${highlight ? 'text-white' : 'text-zinc-100'}`}>{value.toLocaleString()}</h3>
+            <h3 className={`text-xl font-bold tracking-tight tabular-nums ${highlight ? 'text-white' : 'text-zinc-200'}`}>{value.toLocaleString()}</h3>
         </div>
     );
 }
 
 function getOutcomeStyle(outcome: string) {
     const lower = outcome.toLowerCase();
+    // More professional, muted badge colors
     if (lower.includes('closed') || lower.includes('paid') || lower.includes('full')) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
     if (lower.includes('deposit') || lower.includes('mrr')) return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
     if (lower.includes('no show') || lower.includes('cancelled')) return 'bg-red-500/10 text-red-400 border-red-500/20';
-    return 'bg-zinc-800 text-zinc-400 border-zinc-700';
+    return 'bg-zinc-800/50 text-zinc-400 border-zinc-700/50';
 }

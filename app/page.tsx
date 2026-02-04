@@ -186,71 +186,52 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
         {/* MAIN DASHBOARD */}
         <div className="space-y-6 relative z-10">
             
-            {/* ROW 1: TOP 3 CARDS (VALHALLA STYLE: POP) */}
+            {/* ROW 1: TOP 3 CARDS (BRIGHT & VIBRANT) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
-                {/* 1. Net Cash (Cyan Theme) */}
-                <div className="relative group overflow-hidden bg-[#0c0c0c] border border-cyan-900/40 p-8 rounded-3xl font-sans shadow-[0_0_40px_-15px_rgba(6,182,212,0.15)]">
-                    {/* Deep Tint */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/10 to-transparent opacity-100" />
-                    
-                    <div className="relative z-10 h-full flex flex-col justify-start gap-1">
-                         <div className="flex justify-between items-center mb-6">
-                            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">Net Cash Collected</p>
-                            <DollarSign size={20} className="text-cyan-400" />
-                        </div>
-                        <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">
-                             ${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}
-                        </h2>
+                {/* 1. Net Cash (Cyan/Blue Gradient) */}
+                <HeroCard 
+                    label="Net Cash Collected" 
+                    value={`$${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}`} 
+                    icon={<DollarSign size={24} className="text-white opacity-80" />} 
+                    gradient="bg-gradient-to-br from-cyan-500 to-blue-600"
+                    shadow="shadow-2xl shadow-cyan-500/20"
+                />
+
+                 {/* 2. Total Revenue (Emerald/Green Gradient) */}
+                <div className={`relative overflow-hidden bg-gradient-to-br from-emerald-500 to-teal-600 p-8 rounded-3xl font-sans shadow-2xl shadow-emerald-500/20 flex flex-col justify-start h-full`}>
+                     <div className="flex justify-between items-start mb-4">
+                        <p className="text-xs font-black text-white/80 uppercase tracking-widest">Total Revenue</p>
+                        <TrendingUp size={24} className="text-white opacity-80" />
                     </div>
-                </div>
 
-                 {/* 2. Total Revenue (Emerald Theme - With Breakdown) */}
-                <div className="relative group overflow-hidden bg-[#0c0c0c] border border-emerald-900/40 p-8 rounded-3xl font-sans shadow-[0_0_40px_-15px_rgba(16,185,129,0.15)]">
-                    {/* Deep Tint */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/10 to-transparent opacity-100" />
-                    
-                    <div className="relative z-10 h-full flex flex-col justify-start gap-1">
-                         <div className="flex justify-between items-center mb-6">
-                            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">Total Revenue</p>
-                            <TrendingUp size={20} className="text-emerald-400" />
+                    <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums mb-6">
+                            ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                    </h2>
+
+                    {/* Breakdown Pills (Semi-transparent for bright bg) */}
+                    <div className="flex items-center gap-4 mt-auto">
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-black/20 rounded-lg">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-300"></div>
+                            <span className="text-[9px] font-bold uppercase text-white/90">New Cash:</span>
+                            <span className="text-xs font-black text-white tabular-nums">${newCash.toLocaleString()}</span>
                         </div>
-
-                        <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums mb-auto">
-                             ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
-                        </h2>
-
-                        {/* Breakdown */}
-                        <div className="flex items-center gap-4 mt-4 pt-4 border-t border-emerald-500/10">
-                            <div className="flex items-center gap-1.5">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 box-shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                                <span className="text-[9px] font-bold uppercase text-zinc-500 tracking-wider">New Cash:</span>
-                                <span className="text-[11px] font-black text-emerald-100 tabular-nums">${newCash.toLocaleString()}</span>
-                            </div>
-                             <div className="flex items-center gap-1.5">
-                                <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 box-shadow-[0_0_8px_rgba(34,211,238,0.5)]"></div>
-                                <span className="text-[9px] font-bold uppercase text-zinc-500 tracking-wider">MRR:</span>
-                                <span className="text-[11px] font-black text-cyan-100 tabular-nums">${mrrCash.toLocaleString()}</span>
-                            </div>
+                         <div className="flex items-center gap-2 px-3 py-1.5 bg-black/20 rounded-lg">
+                            <div className="w-1.5 h-1.5 rounded-full bg-cyan-300"></div>
+                            <span className="text-[9px] font-bold uppercase text-white/90">MRR:</span>
+                            <span className="text-xs font-black text-white tabular-nums">${mrrCash.toLocaleString()}</span>
                         </div>
                     </div>
                 </div>
 
-                 {/* 3. Close Rate (Purple Theme) */}
-                 <div className="relative group overflow-hidden bg-[#0c0c0c] border border-purple-900/40 p-8 rounded-3xl font-sans shadow-[0_0_40px_-15px_rgba(168,85,247,0.15)]">
-                    {/* Deep Tint */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/10 to-transparent opacity-100" />
-                    
-                    <div className="relative z-10 h-full flex flex-col justify-start gap-1">
-                         <div className="flex justify-between items-center mb-6">
-                            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">Close Rate (Taken)</p>
-                            <Percent size={20} className="text-purple-400" />
-                        </div>
-                        <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">
-                             {closeRate.toFixed(1)}%
-                        </h2>
-                    </div>
-                </div>
+                 {/* 3. Close Rate (Purple/Pink Gradient) */}
+                 <HeroCard 
+                    label="Close Rate (Taken to Closed)" 
+                    value={`${closeRate.toFixed(1)}%`} 
+                    icon={<Percent size={24} className="text-white opacity-80" />} 
+                    gradient="bg-gradient-to-br from-purple-500 to-pink-600"
+                    shadow="shadow-2xl shadow-purple-500/20"
+                />
             </div>
 
             {/* ROW 2: ANALYTICS GRID */}
@@ -363,6 +344,19 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 }
 
 // --- COMPONENTS ---
+// Updated Bright Hero Card
+function HeroCard({ label, value, icon, gradient, shadow }: any) {
+    return (
+        <div className={`relative overflow-hidden ${gradient} p-8 rounded-3xl font-sans ${shadow} flex flex-col justify-start h-full`}>
+             <div className="flex justify-between items-start mb-4">
+                <p className="text-xs font-black text-white/80 uppercase tracking-widest">{label}</p>
+                {icon}
+            </div>
+            <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">{value}</h2>
+        </div>
+    )
+}
+
 function StatBox({ label, value, icon, highlight = false }: { label: string, value: any, icon?: React.ReactNode, highlight?: boolean }) {
     return (
         <div className={`bg-zinc-900/40 border ${highlight ? 'border-cyan-500/30 bg-cyan-900/10' : 'border-zinc-800/50'} p-5 rounded-2xl transition-all group hover:border-cyan-500/20 flex flex-col justify-between gap-3 font-sans`}>

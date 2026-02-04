@@ -5,8 +5,9 @@ export const revalidate = 0;
 import React from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
-import { Link as LinkIcon, Copy, CheckCircle2, Youtube, TrendingUp, DollarSign, Users, Phone, Activity, MousePointer, Filter } from 'lucide-react';
-import Image from 'next/image';
+import { Youtube, TrendingUp, DollarSign, Users, Phone, CheckCircle2, Filter, Banknote } from 'lucide-react';
+// Import the existing Filters component
+import Filters from '../Filters'; 
 
 // --- HELPERS ---
 const cleanName = (name: string) => {
@@ -28,13 +29,16 @@ async function getYouTubeAttribution() {
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
+    const platformsSet = new Set<string>();
+    const closersSet = new Set<string>();
+    const settersSet = new Set<string>();
+
     // 1. LOAD SALES DATA
     const salesDoc = new GoogleSpreadsheet(process.env.SHEET_ID!, serviceAccountAuth);
     await salesDoc.loadInfo();
     const salesSheet = salesDoc.sheetsByIndex[0];
     const salesRows = await salesSheet.getRows();
 
-    // Map now stores more than just cash/rev to calculate rates
     const salesByName = new Map<string, { cash: number, revenue: number, calls: number, taken: number, closed: number }>();
     const salesByEmail = new Map<string, { cash: number, revenue: number, calls: number, taken: number, closed: number }>();
     
@@ -43,6 +47,12 @@ async function getYouTubeAttribution() {
             const k = salesSheet.headerValues.find(header => header.toLowerCase().includes(h.toLowerCase()));
             return k ? row.get(k) : '';
         };
+
+        // Collect Filter Data
+        const closer = get('Closer Name');
+        const setter = get('Setter Name');
+        if (closer) closersSet.add(closer);
+        if (setter) settersSet.add(setter);
 
         const rawName = get('Prospect Name') || get('Name'); 
         const rawEmail = get('Email');
@@ -57,13 +67,12 @@ async function getYouTubeAttribution() {
         };
 
         // Determine Call Stats
-        const isCall = true; // Assuming every row is a call
         const isTaken = !['no show', 'cancelled', 'rescheduled'].some(x => outcome.includes(x));
         const isClosed = ['closed', 'paid', 'deposit', 'full pay'].some(x => outcome.includes(x));
 
         const data = {
             cash: parseMoney(get('Cash Collected')), 
-            revenue: parseMoney(get('Revenue')),
+            revenue: parseMoney(get('Revenue Generated') || get('Revenue')),
             calls: 1,
             taken: isTaken ? 1 : 0,
             closed: isClosed ? 1 : 0
@@ -90,7 +99,6 @@ async function getYouTubeAttribution() {
     const leadsSheet = leadsDoc.sheetsByIndex[0];
     const leadsRows = await leadsSheet.getRows();
 
-    // Stats map extended for new metrics
     const videoStats = new Map<string, { 
         id: string, 
         leads: number, 
@@ -108,6 +116,10 @@ async function getYouTubeAttribution() {
              return k ? row.get(k) : '';
         };
 
+        // Collect Filter Data
+        const platform = getLeadVal('What platform did') || 'Other';
+        if (platform) platformsSet.add(platform);
+
         const rawContent = getLeadVal('utm_content') || getLeadVal('content') || '';
         let videoId = 'Unknown Video';
         if (rawContent) {
@@ -123,7 +135,7 @@ async function getYouTubeAttribution() {
         const leadEmail = getLeadVal('Email') || '';
         const intent = (getLeadVal('willing to invest') || getLeadVal('right now') || getLeadVal('funds') || '').toLowerCase();
         
-        // CHECK QUALIFICATION ($3k, $5k, $10k+)
+        // CHECK QUALIFICATION
         const isQualified = intent.includes('3k') || intent.includes('5k') || intent.includes('10k') || intent.includes('100k');
 
         const fullName = `${firstName} ${lastName}`;
@@ -171,18 +183,23 @@ async function getYouTubeAttribution() {
         }
     }));
 
-    return enrichedStats.sort((a, b) => b.cash - a.cash || b.qualified - a.qualified);
+    return {
+        stats: enrichedStats.sort((a, b) => b.cash - a.cash || b.qualified - a.qualified),
+        filters: {
+            platforms: Array.from(platformsSet).filter(Boolean),
+            closers: Array.from(closersSet).filter(Boolean),
+            setters: Array.from(settersSet).filter(Boolean)
+        }
+    };
 
   } catch (error) {
     console.error("Attribution Error:", error);
-    return [];
+    return { stats: [], filters: { platforms: [], closers: [], setters: [] } };
   }
 }
 
 // --- CLIENT SIDE UTM BUILDER (Inlined for simplicity) ---
-// Note: In a real app, this should be a separate client component file
 const UtmBuilderSection = () => {
-    // This is a client-side only section
     return (
         <form className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-8 mb-12 shadow-lg">
              <div className="flex items-center gap-2 mb-6">
@@ -209,8 +226,18 @@ const UtmBuilderSection = () => {
 };
 
 
-export default async function YouTubePage() {
-  const stats = await getYouTubeAttribution();
+export default async function YouTubePage({ searchParams }: { searchParams: Promise<any> }) {
+  const params = await searchParams;
+  // Destructure stats and filters from the new return structure
+  const { stats, filters } = await getYouTubeAttribution();
+
+  // Basic filtering logic (can be expanded)
+  const filteredStats = stats.filter(video => {
+      if (params.platform && video.id.includes(params.platform)) return false; // Very basic example filter
+      // Add more complex filtering logic here if needed based on how you want to filter videos vs leads
+      return true;
+  });
+
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-red-500/30">
@@ -234,19 +261,27 @@ export default async function YouTubePage() {
         {/* UTM BUILDER */}
         <UtmBuilderSection />
 
-        {/* VIDEO ROI INTELLIGENCE */}
-        <div className="mb-6 flex items-center gap-2">
-             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-             <h3 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400">Video ROI Intelligence</h3>
+        {/* VIDEO ROI HEADER & FILTERS */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+             <div className="flex items-center gap-2">
+                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                 <h3 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400">Video ROI Intelligence</h3>
+             </div>
+             
+             {/* ADDED FILTERS HERE */}
+             <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg flex items-center gap-4 shadow-sm">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
+                <Filters platforms={filters.platforms} closers={filters.closers} setters={filters.setters} />
+            </div>
         </div>
 
+        {/* VIDEO GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {stats.map((video) => {
+            {filteredStats.map((video) => {
                 // Calculations
                 const closeRate = video.taken > 0 ? (video.closed / video.taken) * 100 : 0;
                 const showRate = video.calls > 0 ? (video.taken / video.calls) * 100 : 0;
                 const aov = video.closed > 0 ? video.cash / video.closed : 0;
-                const closesBooked = video.calls > 0 ? (video.closed / video.calls) * 100 : 0;
 
                 return (
                     <div key={video.id} className="group bg-zinc-900/30 border border-zinc-800 hover:border-zinc-700 rounded-2xl overflow-hidden transition-all duration-300">
@@ -265,29 +300,31 @@ export default async function YouTubePage() {
                             </div>
                         </div>
 
-                        {/* Metrics Grid (Matches Image 4 Layout) */}
+                        {/* REORDERED METRICS GRID (Logical Funnel Flow) */}
                         <div className="p-5 grid grid-cols-2 gap-y-4 gap-x-4 text-xs">
                             
-                            {/* Row 1 */}
-                            <MetricRow label="Cash Collected" value={`$${video.cash.toLocaleString()}`} color="text-emerald-400" icon={<DollarSign size={10} />} />
+                            {/* Row 1: Volume (Leads -> Qualified) */}
+                            <MetricRow label="Total Leads" value={video.leads} color="text-zinc-300" icon={<Users size={10} />} />
                             <MetricRow label="Qualified Leads" value={video.qualified} color="text-white" icon={<Filter size={10} />} />
 
-                            {/* Row 2 */}
+                            {/* Row 2: Calls (Booked -> Taken) */}
+                            <MetricRow label="Booked Calls" value={video.calls} color="text-zinc-300" icon={<Phone size={10} />} />
+                            <MetricRow label="Taken Calls" value={video.taken} color="text-white" icon={<checkCircle2 size={10} />} />
+
+                            {/* Row 3: Money (Cash -> Revenue) */}
+                            <MetricRow label="Cash Collected" value={`$${video.cash.toLocaleString()}`} color="text-emerald-400" icon={<DollarSign size={10} />} />
+                            <MetricRow label="Total Revenue" value={`$${video.revenue.toLocaleString()}`} color="text-emerald-400" icon={<Banknote size={10} />} />
+
+                             {/* Row 4: Rates (Show -> Close) */}
+                            <MetricRow label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-blue-400" icon={<Activity size={10} />} />
                             <MetricRow label="Close Rate" value={`${closeRate.toFixed(1)}%`} color="text-blue-400" icon={<TrendingUp size={10} />} />
-                            <MetricRow label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-blue-400" icon={<Phone size={10} />} />
 
-                            {/* Row 3 */}
-                            <MetricRow label="Applicants" value={video.leads} color="text-zinc-300" icon={<Users size={10} />} />
-                            <MetricRow label="Opt-ins" value="--" color="text-zinc-500" icon={<MousePointer size={10} />} /> 
-
-                            {/* Row 4 */}
-                            <MetricRow label="AOV" value={`$${aov.toLocaleString(undefined, {maximumFractionDigits:0})}`} color="text-purple-400" icon={<DollarSign size={10} />} />
-                            <MetricRow label="Booked Calls" value={video.calls} color="text-white" icon={<CheckCircle2 size={10} />} />
-
-                            {/* Row 5 */}
-                            <div className="col-span-2 pt-2 border-t border-zinc-800/50 flex justify-between items-center">
-                                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Closes / Booked</span>
-                                <span className="text-sm font-black text-orange-400">{closesBooked.toFixed(1)}%</span>
+                            {/* Row 5: Footer Stats */}
+                            <div className="col-span-2 pt-3 border-t border-zinc-800/50 flex justify-between items-center">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">AOV:</span>
+                                    <span className="text-sm font-black text-purple-400">${aov.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
+                                </div>
                             </div>
 
                         </div>

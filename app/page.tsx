@@ -166,7 +166,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
     <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans">
       <div className="max-w-[1600px] mx-auto">
         
-        {/* HEADER & FILTERS */}
+        {/* HEADER */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-8 relative z-[100]">
             <div>
                 <div className="flex items-center gap-2 mb-1">
@@ -185,55 +185,62 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
         {/* MAIN DASHBOARD */}
         <div className="space-y-6 relative z-10">
             
-            {/* ROW 1: PROFESSIONAL TOP CARDS (Smaller, Cleaner) */}
+            {/* ROW 1: TOP 3 CARDS (ALIGNED & SLIM) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 
                 {/* 1. Net Cash */}
-                <HeroCard 
-                    label="Net Cash Collected" 
-                    value={`$${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}`} 
-                    icon={<DollarSign size={18} className="text-cyan-400" />}
-                    accentColor="cyan"
-                />
+                <div className="bg-zinc-900/40 border border-cyan-500/20 backdrop-blur-sm p-6 rounded-2xl shadow-sm h-36 flex flex-col justify-between">
+                     <div className="flex justify-between items-start">
+                        <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Net Cash Collected</p>
+                        <DollarSign size={18} className="text-cyan-400" />
+                    </div>
+                    {/* Aligned Number */}
+                    <div className="flex-1 flex items-center">
+                        <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums">${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}</h2>
+                    </div>
+                </div>
 
-                 {/* 2. Total Revenue (With compact breakdown) */}
-                <div className="relative overflow-hidden bg-zinc-900/40 border border-emerald-500/20 backdrop-blur-sm p-6 rounded-2xl shadow-sm flex flex-col justify-between h-full">
-                     <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-emerald-500/50 to-transparent"></div>
-                     <div>
-                        <div className="flex justify-between items-start mb-3">
-                            <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Total Revenue</p>
-                            <TrendingUp size={18} className="text-emerald-400" />
-                        </div>
-                        <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums mb-4">
-                                ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
-                        </h2>
-                     </div>
-
-                    {/* Professional Breakdown */}
-                    <div className="flex items-center gap-4 pt-3 border-t border-zinc-800/50 text-xs">
+                 {/* 2. Total Revenue (Breakdown Below) */}
+                <div className="bg-zinc-900/40 border border-emerald-500/20 backdrop-blur-sm p-6 rounded-2xl shadow-sm h-36 flex flex-col justify-between">
+                     <div className="flex justify-between items-start">
+                        <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Total Revenue</p>
+                        <TrendingUp size={18} className="text-emerald-400" />
+                    </div>
+                    
+                    {/* Aligned Number Container */}
+                    <div className="flex-1 flex flex-col justify-center gap-2">
+                        <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums">${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}</h2>
+                        
+                        {/* Breakdown Frames */}
                         <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-sm bg-emerald-500"></div>
-                            <span className="text-zinc-400">New:</span>
-                            <span className="font-bold text-white tabular-nums">${newCash.toLocaleString()}</span>
-                        </div>
-                         <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-sm bg-cyan-500"></div>
-                            <span className="text-zinc-400">MRR:</span>
-                            <span className="font-bold text-white tabular-nums">${mrrCash.toLocaleString()}</span>
+                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900/50">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                <span className="text-[9px] font-medium text-zinc-400 uppercase">New:</span>
+                                <span className="text-[10px] font-bold text-white tabular-nums">${newCash.toLocaleString()}</span>
+                            </div>
+                             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900/50">
+                                <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
+                                <span className="text-[9px] font-medium text-zinc-400 uppercase">MRR:</span>
+                                <span className="text-[10px] font-bold text-white tabular-nums">${mrrCash.toLocaleString()}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                  {/* 3. Close Rate */}
-                 <HeroCard 
-                    label="Close Rate (Taken)" 
-                    value={`${closeRate.toFixed(1)}%`} 
-                    icon={<Percent size={18} className="text-purple-400" />} 
-                    accentColor="purple"
-                />
+                 <div className="bg-zinc-900/40 border border-purple-500/20 backdrop-blur-sm p-6 rounded-2xl shadow-sm h-36 flex flex-col justify-between">
+                     <div className="flex justify-between items-start">
+                        <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Close Rate (Taken)</p>
+                        <Percent size={18} className="text-purple-400" />
+                    </div>
+                    {/* Aligned Number */}
+                    <div className="flex-1 flex items-center">
+                        <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums">{closeRate.toFixed(1)}%</h2>
+                    </div>
+                </div>
             </div>
 
-            {/* ROW 2: ANALYTICS GRID (Cleaner Borders) */}
+            {/* ROW 2: ANALYTICS GRID */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} icon={<Users size={14}/>} />
                 <StatBox label="Calls Due" value={callsDue} icon={<Phone size={14}/>} />
@@ -245,7 +252,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 <StatBox label="Cash / Close" value={`$${avgCashClose.toFixed(0)}`} highlight />
             </div>
 
-            {/* ROW 3: CASH COLLECTED GRAPH (Professional, No Neon Glow) */}
+            {/* ROW 3: CASH COLLECTED GRAPH */}
             <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm relative overflow-hidden h-[320px]">
                 <div className="flex items-center justify-between mb-8 relative z-20">
                     <h3 className="text-xs font-bold uppercase text-zinc-400 tracking-widest">Cash Flow Trend</h3>
@@ -268,10 +275,8 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 
                     <svg className="absolute inset-0 w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
                         <defs>
-                            {/* Cleaner Gradients */}
                             <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.6"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1"/></linearGradient>
                             <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#22d3ee" /><stop offset="100%" stopColor="#0ea5e9" /></linearGradient>
-                            {/* Removed Glow Filter for professionalism */}
                         </defs>
                         
                         {trend.map(([date, count], i) => {
@@ -286,7 +291,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                                     <rect x={xPos} y={0} width={width} height={CHART_HEIGHT} fill="transparent" />
                                     {count > 0 && <rect x={xPos} y={yPos} width={width} height={barHeight} fill="url(#barGrad)" rx="2" className="opacity-40 transition-all duration-300 group-hover:opacity-80" />}
                                     
-                                    {/* Professional SVG Tooltip */}
                                     <g className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                                         <rect x={centerX - 35} y={yPos - 35} width="70" height="26" rx="4" fill="#18181b" stroke="#27272a" strokeWidth="1" className="shadow-lg"/>
                                         <text x={centerX} y={yPos - 22} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="11" fontWeight="600">
@@ -296,7 +300,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                                 </g>
                             );
                         })}
-                        {/* Clean Line - No Glow */}
                         <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} className="pointer-events-none opacity-90" />
                     </svg>
 
@@ -344,28 +347,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 }
 
 // --- COMPONENTS ---
-// Professional Hero Card (Smaller, Cleaner)
-function HeroCard({ label, value, icon, accentColor }: any) {
-    const colorMap: any = {
-        cyan: 'from-cyan-500/50 to-transparent border-cyan-500/20',
-        purple: 'from-purple-500/50 to-transparent border-purple-500/20',
-    };
-    const accentClass = colorMap[accentColor] || 'from-zinc-500/50 to-transparent border-zinc-500/20';
-
-    return (
-        <div className={`relative overflow-hidden bg-zinc-900/40 border ${accentClass.split(' ')[2]} backdrop-blur-sm p-6 rounded-2xl shadow-sm flex flex-col justify-between h-full`}>
-            {/* Subtle top accent gradient */}
-            <div className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${accentClass.split(' ')[0]} ${accentClass.split(' ')[1]}`}></div>
-            
-             <div className="flex justify-between items-start mb-3">
-                <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">{label}</p>
-                {icon}
-            </div>
-            <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums">{value}</h2>
-        </div>
-    )
-}
-
 function StatBox({ label, value, icon, highlight = false }: { label: string, value: any, icon?: React.ReactNode, highlight?: boolean }) {
     return (
         <div className={`bg-zinc-900/40 border ${highlight ? 'border-cyan-500/20 bg-cyan-500/5' : 'border-zinc-800/80'} backdrop-blur-sm p-4 rounded-xl transition-all hover:border-cyan-500/20 flex flex-col gap-2 font-sans shadow-sm`}>
@@ -380,7 +361,6 @@ function StatBox({ label, value, icon, highlight = false }: { label: string, val
 
 function getOutcomeStyle(outcome: string) {
     const lower = outcome.toLowerCase();
-    // More professional, muted badge colors
     if (lower.includes('closed') || lower.includes('paid') || lower.includes('full')) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
     if (lower.includes('deposit') || lower.includes('mrr')) return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
     if (lower.includes('no show') || lower.includes('cancelled')) return 'bg-red-500/10 text-red-400 border-red-500/20';

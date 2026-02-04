@@ -5,7 +5,7 @@ export const revalidate = 0;
 import React from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
-import { Youtube, TrendingUp, DollarSign, Users, Phone, CheckCircle2, Filter, Banknote } from 'lucide-react';
+import { Youtube, TrendingUp, DollarSign, Users, Phone, CheckCircle2, Filter, Banknote, Activity } from 'lucide-react';
 // Import the existing Filters component
 import Filters from '../Filters'; 
 
@@ -296,7 +296,7 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                             </div>
                         </div>
 
-                        {/* REORDERED METRICS GRID: Leads -> Qualified -> Cash -> Revenue */}
+                        {/* REORDERED METRICS GRID (Removed "Taken Calls" row) */}
                         <div className="p-5 grid grid-cols-2 gap-y-4 gap-x-4 text-xs">
                             
                             {/* Row 1: Top Funnel */}
@@ -307,15 +307,15 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                             <MetricRow label="Cash Collected" value={`$${video.cash.toLocaleString()}`} color="text-emerald-400" icon={<DollarSign size={10} />} />
                             <MetricRow label="Total Revenue" value={`$${video.revenue.toLocaleString()}`} color="text-emerald-400" icon={<Banknote size={10} />} />
 
-                            {/* Row 3: Call Stats */}
+                            {/* Row 3: Calls & Show Rate */}
                             <MetricRow label="Booked Calls" value={video.calls} color="text-zinc-300" icon={<Phone size={10} />} />
-                            <MetricRow label="Taken Calls" value={video.taken} color="text-white" icon={<CheckCircle2 size={10} />} />
+                            <MetricRow label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-blue-400" icon={<Activity size={10} />} />
 
-                             {/* Row 4: Rates */}
-                            <MetricRow label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-blue-400" icon={<CheckCircle2 size={10} />} />
+                             {/* Row 4: Close Rate (Balanced grid) */}
                             <MetricRow label="Close Rate" value={`${closeRate.toFixed(1)}%`} color="text-blue-400" icon={<TrendingUp size={10} />} />
+                            <div>{/* Empty slot for grid balance */}</div>
 
-                            {/* Row 5: AOV */}
+                            {/* Row 5: AOV Footer */}
                             <div className="col-span-2 pt-3 border-t border-zinc-800/50 flex justify-between items-center">
                                 <div className="flex items-center gap-1.5">
                                     <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">AOV:</span>

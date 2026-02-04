@@ -124,12 +124,25 @@ const UtmBuilder = () => (
     </div>
 );
 
-const SummaryCard = ({ label, value }: { label: string, value: string }) => (
-    <div className="bg-[#121214] border border-zinc-800/60 rounded-xl p-4 flex flex-col justify-between h-24">
-        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{label}</span>
-        <span className="text-2xl font-black text-white tracking-tight">{value}</span>
-    </div>
-);
+const SummaryCard = ({ label, value, highlight, icon }: { label: string, value: string, highlight?: 'green' | 'blue' | 'purple', icon?: any }) => {
+    const styles = {
+        green: 'bg-emerald-950/20 border-emerald-500/30 text-emerald-400 shadow-[0_0_15px_-5px_rgba(16,185,129,0.1)]',
+        blue: 'bg-blue-950/20 border-blue-500/30 text-blue-400 shadow-[0_0_15px_-5px_rgba(59,130,246,0.1)]',
+        purple: 'bg-purple-950/20 border-purple-500/30 text-purple-400 shadow-[0_0_15px_-5px_rgba(168,85,247,0.1)]',
+        default: 'bg-[#121214] border-zinc-800/60 text-white'
+    };
+    const theme = highlight ? styles[highlight] : styles.default;
+
+    return (
+        <div className={`${theme} border rounded-xl p-4 flex flex-col justify-between h-24`}>
+            <div className="flex justify-between items-start">
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${highlight ? 'opacity-90' : 'text-zinc-500'}`}>{label}</span>
+                {icon && <div className="opacity-80">{icon}</div>}
+            </div>
+            <span className="text-2xl font-black tracking-tight">{value}</span>
+        </div>
+    );
+};
 
 const SortButton = ({ label, icon, active, href }: any) => (
     <Link href={href} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${active ? 'bg-blue-600 text-white' : 'bg-[#18181b] text-zinc-400 hover:text-white border border-zinc-800'}`}>
@@ -204,8 +217,9 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                 </div>
             </div>
 
-            {/* SUMMARY CARDS ROW */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+            {/* UNIFIED SUMMARY CARDS ROW (Totals Moved Here) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-3">
+                {/* Standard Metrics */}
                 <SummaryCard label="Applications" value={totals.qualified.toLocaleString()} />
                 <SummaryCard label="Opt-ins" value={totals.leads.toLocaleString()} />
                 <SummaryCard label="AOV" value={`$${aggAov.toLocaleString(undefined, {maximumFractionDigits:0})}`} />
@@ -214,6 +228,11 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                 <SummaryCard label="Closes/Booked" value={`${aggCloseRate.toFixed(1)}%`} />
                 <SummaryCard label="Avg. Cash/App" value={`$${aggCashApp.toFixed(0)}`} />
                 <SummaryCard label="Avg. Cash/Opt-in" value={`$${aggCashOpt.toFixed(0)}`} />
+
+                {/* HIGHLIGHTED TOTALS (Moved Up) */}
+                <SummaryCard label="Total Videos" value={stats.length.toString()} highlight="blue" icon={<Youtube size={14}/>} />
+                <SummaryCard label="Total Calls" value={totals.calls.toLocaleString()} highlight="purple" icon={<Phone size={14}/>} />
+                <SummaryCard label="Total Cash" value={`$${(totals.cash/1000).toFixed(1)}k`} highlight="green" icon={<DollarSign size={14}/>} />
             </div>
 
             {/* PAGINATION BAR */}
@@ -259,13 +278,6 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
             })}
         </div>
 
-        {/* BOTTOM TOTALS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
-            <BottomTotalCard label="Total Videos" value={stats.length} icon={<Youtube size={20} className="text-zinc-500" />} />
-            <BottomTotalCard label="Total Calls" value={totals.calls} icon={<Phone size={20} className="text-blue-500" />} />
-            <BottomTotalCard label="Total Cash Collected" value={`$${totals.cash.toLocaleString()}`} icon={<DollarSign size={20} className="text-emerald-500" />} highlight />
-        </div>
-
       </div>
     </div>
   );
@@ -276,15 +288,5 @@ const MetricRow = ({ label, value, color, icon }: any) => (
     <div className="flex justify-between items-center w-full">
         <div className="flex items-center gap-2 text-zinc-500">{icon}<span className="text-[10px] font-bold uppercase tracking-wide">{label}</span></div>
         <span className={`font-black tracking-tight ${color}`}>{value}</span>
-    </div>
-);
-
-const BottomTotalCard = ({ label, value, icon, highlight }: any) => (
-    <div className="bg-[#121214] border border-zinc-800 rounded-2xl p-6 flex justify-between items-center">
-        <div>
-            <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">{label}</p>
-            <h3 className={`text-4xl font-black tracking-tighter ${highlight ? 'text-white' : 'text-white'}`}>{value}</h3>
-        </div>
-        <div className={`p-3 rounded-full ${highlight ? 'bg-emerald-500/10' : 'bg-zinc-800/50'}`}>{icon}</div>
     </div>
 );

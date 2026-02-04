@@ -5,8 +5,8 @@ export const revalidate = 0;
 import React from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
-import Filters from '../Filters'; // Assuming Filters is in the parent directory or adjust path
-import { Users, Filter, TrendingUp, Search, Calendar, Globe, DollarSign } from 'lucide-react';
+import Filters from '../Filters'; 
+import { Users, Filter, TrendingUp, Search, Globe } from 'lucide-react';
 
 // --- HELPER: FETCH LEADS DATA ---
 async function getLeadsData() {
@@ -33,7 +33,7 @@ async function getLeadsData() {
         lastName: getVal('Last Name') || '',
         email: getVal('Email') || 'N/A',
         source: getVal('utm_source') || 'Organic',
-        funds: getVal('funds') || 'Unknown', // "Cash on Hand" data
+        funds: getVal('funds') || 'Unknown',
         date: getVal('Submitted At') || getVal('Date') || '',
       };
     });
@@ -64,7 +64,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   });
 
   const totalLeads = filteredLeads.length;
-  // Logic: "Qualified" if funds are NOT "$0-$500" or empty
   const qualifiedLeads = filteredLeads.filter(l => l.funds && !['$0-$500', '0-500', 'Unknown'].some(x => l.funds.includes(x))).length;
   const qualificationRate = totalLeads > 0 ? (qualifiedLeads / totalLeads) * 100 : 0;
 
@@ -76,7 +75,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       const f = l.funds || 'Unknown';
       fundMap.set(f, (fundMap.get(f) || 0) + 1);
   });
-  // Sort by count descending
   const fundBreakdown = Array.from(fundMap.entries()).sort((a, b) => b[1] - a[1]);
 
   // 3. GRAPH DATA
@@ -107,7 +105,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const trend = Array.from(dayMap.entries());
   const maxLeads = Math.max(...trend.map(([_, c]) => c), 5);
 
-  // 4. CHART CONSTANTS
   const CHART_HEIGHT = 220;
   const CHART_WIDTH = 1000;
   const BAR_MAX_HEIGHT = 180;
@@ -136,25 +133,18 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg flex flex-wrap items-center gap-4 shadow-sm">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
                 
-                {/* 2. CALENDAR RESTORED (Visual Button) */}
-                <button className="flex items-center gap-2 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 px-3 py-1.5 rounded text-xs font-medium text-zinc-300 transition-colors">
-                    <Calendar size={14} />
-                    {start ? `${start.toLocaleDateString()} - ${end?.toLocaleDateString()}` : 'Select Date Range'}
-                </button>
-
-                <div className="h-4 w-px bg-zinc-700 mx-2" />
+                {/* REMOVED DUPLICATE BUTTON HERE */}
                 
-                {/* Existing Filters */}
                 <Filters platforms={['YouTube', 'Instagram', 'Ads']} closers={[]} setters={[]} />
             </div>
         </div>
 
         <div className="space-y-6 relative z-10">
             
-            {/* ROW 1: TOP METRICS (MATCHING STYLE: Dark Glass + Colored Border) */}
+            {/* ROW 1: TOP METRICS (STYLE MATCHED TO SALES DASHBOARD) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 
-                {/* 1. Total Leads (Blue/Cyan Theme) */}
+                {/* 1. Total Leads (Blue/Cyan) */}
                 <HeroCard 
                     label="Total Leads" 
                     value={totalLeads.toLocaleString()} 
@@ -162,7 +152,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     accentColor="blue"
                 />
 
-                 {/* 2. Qualified Leads (Indigo Theme) */}
+                 {/* 2. Qualified Leads (Indigo) */}
                 <HeroCard 
                     label="Qualified (High Ticket)" 
                     value={qualifiedLeads.toLocaleString()} 
@@ -170,7 +160,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     accentColor="indigo"
                 />
 
-                 {/* 3. Qualification Rate (Emerald Theme) */}
+                 {/* 3. Qualification Rate (Emerald) */}
                  <HeroCard 
                     label="Qualification Rate" 
                     value={`${qualificationRate.toFixed(1)}%`} 
@@ -179,10 +169,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                 />
             </div>
 
-            {/* ROW 2: SPLIT LAYOUT (Graph + Cash on Hand) */}
+            {/* ROW 2: SPLIT LAYOUT */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* LEFT: LEAD VOLUME GRAPH (2/3 Width) */}
+                {/* LEFT: GRAPH */}
                 <div className="lg:col-span-2 bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm relative overflow-hidden h-[340px]">
                     <div className="flex items-center justify-between mb-8 relative z-20">
                         <h3 className="text-xs font-bold uppercase text-zinc-400 tracking-widest">Lead Volume Trend</h3>
@@ -240,7 +230,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     </div>
                 </div>
 
-                {/* RIGHT: CASH ON HAND (Restored) */}
+                {/* RIGHT: CASH ON HAND */}
                 <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm h-[340px] flex flex-col">
                     <h3 className="text-xs font-bold uppercase text-zinc-400 tracking-widest mb-6">Cash on Hand</h3>
                     <div className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar">
@@ -265,7 +255,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                 </div>
             </div>
 
-            {/* ROW 3: RECENT LEADS TABLE */}
+            {/* ROW 3: TABLE */}
             <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-sm">
                 <div className="p-4 border-b border-zinc-800/50 flex justify-between items-center bg-zinc-900/20">
                     <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Incoming Lead Log</h3>
@@ -311,7 +301,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 }
 
 // --- COMPONENTS ---
-// Matches the "Screenshot 2026-02-04 at 4.10.15 PM.png" style
 function HeroCard({ label, value, icon, accentColor }: any) {
     const colorMap: any = {
         blue: 'from-blue-500/10 to-transparent border-blue-500/30 text-blue-400',
@@ -319,11 +308,10 @@ function HeroCard({ label, value, icon, accentColor }: any) {
         emerald: 'from-emerald-500/10 to-transparent border-emerald-500/30 text-emerald-400',
     };
     const style = colorMap[accentColor] || 'from-zinc-500/10 to-transparent border-zinc-500/30 text-zinc-400';
-    const [gradient, border, text] = style.split(' '); // Rough extraction for simplicity, or just use the whole string in class
 
     return (
         <div className={`relative overflow-hidden bg-zinc-900/40 border ${style.split(' ')[2]} backdrop-blur-sm p-6 rounded-2xl shadow-sm flex flex-col justify-between h-36`}>
-            {/* Top Gradient Tint */}
+            {/* Top Tint */}
             <div className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-b ${style.split(' ')[0]} to-transparent opacity-50`}></div>
             
              <div className="relative z-10 flex justify-between items-start mb-3">

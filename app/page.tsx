@@ -206,7 +206,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     <div className={`absolute inset-0 bg-gradient-to-br from-emerald-900/30 to-teal-900/10 opacity-50`} />
                     <div className="relative z-10 h-full flex flex-col justify-between">
                          <div className="flex justify-between items-start mb-4">
-                            <p className="text-xs font-black text-zinc-400 uppercase tracking-widest">{label}</p>
+                            <p className="text-xs font-black text-zinc-400 uppercase tracking-widest">Total Revenue</p>
                             <TrendingUp size={24} className="text-emerald-400" />
                         </div>
                         <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums mb-6">

@@ -146,6 +146,19 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const trend = Array.from(dayMap.entries());
   const maxCash = Math.max(...trend.map(([_, c]) => c), 1);
 
+  // --- RESTORED MISSING CONSTANTS & CALCULATION ---
+  const CHART_HEIGHT = 220;
+  const CHART_WIDTH = 1000;
+  const BAR_MAX_HEIGHT = 180;
+
+  const linePoints: string[] = [];
+  trend.forEach(([_, count], i) => {
+      const x = (i / (trend.length - 1 || 1)) * CHART_WIDTH + (CHART_WIDTH / trend.length / 2); // Center of bar
+      const y = CHART_HEIGHT - ((count / maxCash) * BAR_MAX_HEIGHT);
+      linePoints.push(`${x},${y}`);
+  });
+  // -----------------------------------------------
+
   const platforms = Array.from(new Set(allRawData.map(d => d.platform))).filter(Boolean) as string[];
   const closers = Array.from(new Set(allRawData.map(d => d.closer))).filter(Boolean) as string[];
   const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
@@ -174,7 +187,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
         {/* MAIN DASHBOARD */}
         <div className="space-y-6 relative z-10">
             
-            {/* ROW 1: TOP 3 CARDS (REORDERED & ENHANCED) */}
+            {/* ROW 1: TOP 3 CARDS */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
                 {/* 1. Net Cash */}
@@ -182,23 +195,22 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     label="Net Cash Collected" 
                     value={`$${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}`} 
                     icon={<DollarSign size={24} className="text-cyan-400" />} 
-                    gradient="from-cyan-900/40 to-blue-900/20" // Stronger gradient
+                    gradient="from-cyan-900/40 to-blue-900/20"
                     borderColor="border-cyan-500/40"
                     shadow="shadow-lg shadow-cyan-900/20"
                 />
 
-                 {/* 2. Total Revenue (REORDERED) */}
+                 {/* 2. Total Revenue (Breakdown on TOP) */}
                 <div className="relative group overflow-hidden bg-zinc-900/40 border border-emerald-500/40 p-8 rounded-3xl font-sans shadow-lg shadow-emerald-900/20">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/40 to-teal-900/20 opacity-60" />
                     
-                    {/* Content container with consistent spacing */}
                     <div className="relative z-10 h-full flex flex-col justify-start gap-4">
                          <div className="flex justify-between items-start">
                             <p className="text-xs font-black text-zinc-300 uppercase tracking-widest">Total Revenue</p>
                             <TrendingUp size={24} className="text-emerald-400" />
                         </div>
 
-                        {/* Breakdown Moved ABOVE main number */}
+                        {/* Breakdown moved UP */}
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1.5">
                                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
@@ -212,7 +224,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                             </div>
                         </div>
 
-                        {/* Main Number */}
                         <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">
                              ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
                         </h2>
@@ -242,7 +253,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 <StatBox label="Cash / Close" value={`$${avgCashClose.toFixed(0)}`} highlight />
             </div>
 
-            {/* ROW 3: CASH COLLECTED GRAPH (HTML OVERLAY) */}
+            {/* ROW 3: CASH COLLECTED GRAPH (PURE SVG TOOLTIPS) */}
             <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-6 shadow-inner relative overflow-hidden h-[340px]">
                 <div className="flex items-center justify-between mb-8 relative z-20">
                     <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Collected</h3>
@@ -252,42 +263,52 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     </div>
                 </div>
 
-                <div className="h-[220px] w-full relative">
-                    {/* SVG GRAPH LAYER */}
-                    <div className="absolute inset-0 z-0">
-                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
-                            {[1, 0.5, 0].map(step => (
-                                <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
-                                    <span className="absolute -left-8 -top-2 text-[10px] font-bold text-zinc-500 w-6 text-right">${((maxCash * step) / 1000).toFixed(0)}k</span>
-                                </div>
-                            ))}
-                        </div>
-                        <svg className="w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none" viewBox="0 0 1000 220">
-                            <defs>
-                                <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.9"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.2"/></linearGradient>
-                                <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#fff" /><stop offset="100%" stopColor="#22d3ee" /></linearGradient>
-                                <filter id="glow"><feGaussianBlur stdDeviation="3" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-                            </defs>
-                            {trend.map(([_, count], i) => {
-                                const barHeight = (count / maxCash) * 180;
-                                const width = (1000 / trend.length) * 0.8;
-                                const x = (i * (1000 / trend.length)) + ((1000 / trend.length) - width) / 2;
-                                const y = 220 - barHeight;
-                                return count > 0 && <rect key={i} x={x} y={y} width={width} height={barHeight} fill="url(#barGrad)" rx="4" className="opacity-60" />;
-                            })}
-                            <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} style={{ filter: 'url(#glow)' }} className="opacity-90" />
-                        </svg>
+                <div className="h-[220px] w-full relative z-10 select-none">
+                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
+                        {[1, 0.5, 0].map(step => (
+                            <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
+                                <span className="absolute -left-8 -top-2 text-[10px] font-bold text-zinc-500 w-6 text-right">
+                                    ${((maxCash * step) / 1000).toFixed(0)}k
+                                </span>
+                            </div>
+                        ))}
                     </div>
 
-                    {/* HTML TOOLTIP LAYER */}
-                    <div className="absolute inset-0 z-10 pl-2 pb-6 flex items-end justify-between">
-                        {trend.map(([date, count], i) => (
-                            <div key={i} className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-crosshair hover:bg-white/5 transition-colors rounded-lg">
-                                <div className="absolute opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-full mb-2 bg-white text-black text-[12px] font-black px-3 py-1.5 rounded-md shadow-xl whitespace-nowrap z-50 pointer-events-none" style={{ bottom: `${(count / maxCash) * 80}%`, marginBottom: '10px' }}>
-                                    ${count.toLocaleString()}<div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white rotate-45"></div>
-                                </div>
-                                <div className="absolute -bottom-6 text-[10px] font-bold text-zinc-500 uppercase group-hover:text-white transition-colors">{date}</div>
-                            </div>
+                    <svg className="absolute inset-0 w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
+                        <defs>
+                            <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.9"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.2"/></linearGradient>
+                            <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#fff" /><stop offset="100%" stopColor="#22d3ee" /></linearGradient>
+                            <filter id="glow"><feGaussianBlur stdDeviation="3" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                        </defs>
+                        
+                        {trend.map(([date, count], i) => {
+                            const barHeight = (count / maxCash) * BAR_MAX_HEIGHT;
+                            const xPos = (i / (trend.length - 1 || 1)) * CHART_WIDTH;
+                            const width = (CHART_WIDTH / (trend.length || 1)) * 0.8;
+                            const yPos = CHART_HEIGHT - barHeight;
+
+                            return (
+                                <g key={i} className="group cursor-crosshair">
+                                    <rect x={xPos - width} y={0} width={width * 2} height={CHART_HEIGHT} fill="transparent" />
+                                    {count > 0 && <rect x={xPos - width/2} y={yPos} width={width} height={barHeight} fill="url(#barGrad)" rx="4" className="opacity-60 transition-all duration-300 group-hover:opacity-100 group-hover:fill-cyan-400" />}
+                                    
+                                    <g className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                                        <rect x={xPos - 40} y={yPos - 40} width="80" height="30" rx="6" fill="white" stroke="#e4e4e7" strokeWidth="1"/>
+                                        <text x={xPos} y={yPos - 25} textAnchor="middle" dominantBaseline="middle" fill="black" fontSize="13" fontWeight="900" style={{ textShadow: 'none' }}>
+                                            ${count.toLocaleString()}
+                                        </text>
+                                        <path d={`M ${xPos} ${yPos - 8} L ${xPos - 6} ${yPos - 10} L ${xPos + 6} ${yPos - 10} Z`} fill="white" />
+                                    </g>
+                                </g>
+                            );
+                        })}
+
+                        <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} style={{ filter: 'url(#glow)' }} className="pointer-events-none opacity-90" />
+                    </svg>
+
+                    <div className="absolute inset-x-0 bottom-0 flex justify-between px-2">
+                        {trend.filter((_, i) => i % Math.ceil(trend.length / 8) === 0).map(([date], i) => (
+                            <span key={i} className="text-[10px] font-bold text-zinc-500 uppercase">{date}</span>
                         ))}
                     </div>
                 </div>
@@ -328,7 +349,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 }
 
 // --- COMPONENTS ---
-// Updated HeroCard for consistent spacing and visual pop
 function HeroCard({ label, value, icon, gradient, borderColor, shadow }: any) {
     return (
         <div className={`relative group overflow-hidden bg-zinc-900/40 border ${borderColor} p-8 rounded-3xl font-sans ${shadow}`}>

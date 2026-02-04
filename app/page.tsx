@@ -153,9 +153,13 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 
   const linePoints: string[] = [];
   trend.forEach(([_, count], i) => {
-      const x = (i / (trend.length - 1 || 1)) * CHART_WIDTH + (CHART_WIDTH / (trend.length || 1)) / 2;
+      // Center the line points on the HTML columns (Logic: Width / count / 2)
+      const x = (i / (trend.length - 1 || 1)) * CHART_WIDTH + (CHART_WIDTH / trend.length / 2) - ((CHART_WIDTH / trend.length) * 0.5); 
+      // Simplified: Just target the visual center of the SVG bar
+      const xPos = (i * (CHART_WIDTH / trend.length)) + ((CHART_WIDTH / trend.length) / 2);
+      
       const y = CHART_HEIGHT - ((count / maxCash) * BAR_MAX_HEIGHT);
-      linePoints.push(`${x},${y}`);
+      linePoints.push(`${xPos},${y}`);
   });
 
   const platforms = Array.from(new Set(allRawData.map(d => d.platform))).filter(Boolean) as string[];
@@ -245,8 +249,8 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 <StatBox label="Cash / Close" value={`$${avgCashClose.toFixed(0)}`} highlight />
             </div>
 
-            {/* ROW 3: CASH COLLECTED GRAPH */}
-            <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm relative overflow-hidden h-[320px]">
+            {/* ROW 3: CASH COLLECTED GRAPH (FIXED: HTML TOOLTIPS) */}
+            <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm relative overflow-hidden h-[340px]">
                 <div className="flex items-center justify-between mb-8 relative z-20">
                     <h3 className="text-xs font-bold uppercase text-zinc-400 tracking-widest">Cash Flow Trend</h3>
                     <div className="flex items-center gap-2">
@@ -255,52 +259,60 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     </div>
                 </div>
 
-                <div className="h-[200px] w-full relative z-10 select-none">
-                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
-                        {[1, 0.5, 0].map(step => (
-                            <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
-                                <span className="absolute -left-8 -top-2 text-[10px] font-medium text-zinc-600 w-6 text-right">
-                                    ${((maxCash * step) / 1000).toFixed(0)}k
-                                </span>
-                            </div>
-                        ))}
+                <div className="h-[220px] w-full relative">
+                    
+                    {/* LAYER 1: SVG Graph (Bars + Lines) */}
+                    <div className="absolute inset-0 z-0">
+                        {/* Grid Lines */}
+                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
+                            {[1, 0.5, 0].map(step => (
+                                <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
+                                    <span className="absolute -left-8 -top-2 text-[10px] font-medium text-zinc-600 w-6 text-right">${((maxCash * step) / 1000).toFixed(0)}k</span>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Chart */}
+                        <svg className="w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
+                            <defs>
+                                <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.6"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1"/></linearGradient>
+                                <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#22d3ee" /><stop offset="100%" stopColor="#0ea5e9" /></linearGradient>
+                            </defs>
+                            {trend.map(([_, count], i) => {
+                                const barHeight = (count / maxCash) * BAR_MAX_HEIGHT;
+                                const width = (CHART_WIDTH / trend.length) * 0.8;
+                                const x = (i * (CHART_WIDTH / trend.length)) + ((CHART_WIDTH / trend.length) - width) / 2;
+                                const y = CHART_HEIGHT - barHeight;
+                                return count > 0 && <rect key={i} x={x} y={y} width={width} height={barHeight} fill="url(#barGrad)" rx="2" className="opacity-40" />;
+                            })}
+                            <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} className="opacity-90" />
+                        </svg>
                     </div>
 
-                    <svg className="absolute inset-0 w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
-                        <defs>
-                            <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.6"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1"/></linearGradient>
-                            <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#22d3ee" /><stop offset="100%" stopColor="#0ea5e9" /></linearGradient>
-                        </defs>
-                        
+                    {/* LAYER 2: HTML TOOLTIPS (Prevent Distortion) */}
+                    <div className="absolute inset-0 z-10 pl-2 pb-6 flex items-end justify-between">
                         {trend.map(([date, count], i) => {
-                            const barHeight = (count / maxCash) * BAR_MAX_HEIGHT;
-                            const xPos = (i / (trend.length - 1 || 1)) * CHART_WIDTH + (CHART_WIDTH / (trend.length || 1)) / 2 - ((CHART_WIDTH / (trend.length || 1)) * 0.8) / 2;
-                            const width = (CHART_WIDTH / (trend.length || 1)) * 0.8;
-                            const yPos = CHART_HEIGHT - barHeight;
-                            const centerX = xPos + width / 2;
-
+                            const heightPct = (count / maxCash) * 100;
                             return (
-                                <g key={i} className="group cursor-crosshair">
-                                    <rect x={xPos} y={0} width={width} height={CHART_HEIGHT} fill="transparent" />
-                                    {count > 0 && <rect x={xPos} y={yPos} width={width} height={barHeight} fill="url(#barGrad)" rx="2" className="opacity-40 transition-all duration-300 group-hover:opacity-80" />}
-                                    
-                                    <g className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                                        <rect x={centerX - 35} y={yPos - 35} width="70" height="26" rx="4" fill="#18181b" stroke="#27272a" strokeWidth="1" className="shadow-lg"/>
-                                        <text x={centerX} y={yPos - 22} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="11" fontWeight="600">
-                                            ${count.toLocaleString()}
-                                        </text>
-                                    </g>
-                                </g>
+                                <div key={i} className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-crosshair hover:bg-white/5 transition-colors rounded-lg">
+                                    {/* Tooltip Bubble */}
+                                    <div 
+                                        className="absolute opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-0 mb-2 pointer-events-none transform translate-y-[-10px] group-hover:translate-y-0"
+                                        style={{ bottom: `${(count / maxCash) * 80}%`, marginBottom: '15px' }}
+                                    >
+                                        <div className="bg-[#18181b] border border-zinc-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow-xl whitespace-nowrap flex flex-col items-center">
+                                            <span>${count.toLocaleString()}</span>
+                                            {/* Arrow */}
+                                            <div className="absolute -bottom-1 w-2 h-2 bg-[#18181b] border-b border-r border-zinc-700 transform rotate-45"></div>
+                                        </div>
+                                    </div>
+                                    {/* Date Label */}
+                                    <div className="absolute -bottom-6 text-[10px] font-medium text-zinc-600 uppercase group-hover:text-zinc-300 transition-colors">{date}</div>
+                                </div>
                             );
                         })}
-                        <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} className="pointer-events-none opacity-90" />
-                    </svg>
-
-                    <div className="absolute inset-x-0 bottom-0 flex justify-between px-2">
-                        {trend.filter((_, i) => i % Math.ceil(trend.length / 8) === 0).map(([date], i) => (
-                            <span key={i} className="text-[10px] font-medium text-zinc-600 uppercase">{date}</span>
-                        ))}
                     </div>
+
                 </div>
             </div>
 

@@ -1,4 +1,6 @@
+// 1. FORCE DYNAMIC REFRESH (Fixes the "laggy" data issue)
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 import React from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
@@ -6,7 +8,7 @@ import { JWT } from 'google-auth-library';
 import Filters from './Filters';
 import { TrendingUp, DollarSign, Percent, Users, Phone, CheckCircle2, FileText } from 'lucide-react';
 
-// --- 1. HELPER: FETCH SALES DATA (SHEET 1) ---
+// --- HELPER 1: FETCH SALES DATA (SHEET 1) ---
 async function getSheetData() {
   try {
     const serviceAccountAuth = new JWT({
@@ -41,7 +43,7 @@ async function getSheetData() {
   } catch (error) { return []; }
 }
 
-// --- 2. HELPER: FETCH APPLICATIONS COUNT (SHEET 2 - LEAD FLOW) ---
+// --- HELPER 2: FETCH APPLICATIONS COUNT (SHEET 2 - LEAD FLOW) ---
 async function getApplicationsCount(start: Date | null, end: Date | null) {
     try {
         const serviceAccountAuth = new JWT({
@@ -50,21 +52,18 @@ async function getApplicationsCount(start: Date | null, end: Date | null) {
             scopes: ['https://www.googleapis.com/auth/spreadsheets'],
         });
         
-        // CONNECT TO LEAD FLOW SHEET
         const doc = new GoogleSpreadsheet(process.env.LEAD_FLOW_SHEET_ID!, serviceAccountAuth);
         await doc.loadInfo();
         const sheet = doc.sheetsByIndex[0];
         const rows = await sheet.getRows();
         
         return rows.filter(row => {
-            // SMART SEARCH: Finds "Submitted At", "submitted at", "Date", etc.
             const getLeadVal = (search: string) => {
                  const k = sheet.headerValues.find(h => h.toLowerCase().trim().includes(search.toLowerCase().trim()));
                  return k ? row.get(k) : '';
             };
 
             const rawDate = getLeadVal('submitted') || getLeadVal('date');
-            
             if (!rawDate) return false;
             
             let d = new Date(rawDate);
@@ -78,10 +77,7 @@ async function getApplicationsCount(start: Date | null, end: Date | null) {
             
             return true;
         }).length;
-    } catch (e) { 
-        console.error("Lead Flow Fetch Error:", e);
-        return 0; 
-    }
+    } catch (e) { return 0; }
 }
 
 export default async function ValhallaDashboard({ searchParams }: { searchParams: Promise<any> }) {
@@ -93,10 +89,10 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const end = params.end ? new Date(params.end) : null;
   if (end) end.setHours(23, 59, 59, 999);
 
-  // FETCH APPLICATIONS (Now correctly pulling from Lead Flow Sheet)
+  // 1. GET TOTAL APPLICATIONS (Independent Metric)
   const totalApplications = await getApplicationsCount(start, end);
 
-  // MAIN FILTERING
+  // 2. FILTER SALES DATA
   const performanceData = allRawData.filter(d => {
     if (!d.date) return false;
     const dDate = new Date(d.date);
@@ -108,13 +104,15 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
     return true;
   });
 
+  // 3. CALCULATE TOTAL CASH (Shared Numerator)
   const totalCash = performanceData.reduce((acc, curr) => acc + curr.cash, 0);
 
-  // MRR vs New Cash Split
+  // Revenue Splits
   const mrrData = performanceData.filter(d => d.outcome.toLowerCase().includes('mrr'));
   const mrrCash = mrrData.reduce((acc, curr) => acc + curr.cash, 0);
   const newCash = totalCash - mrrCash;
   
+  // 4. CALCULATE APPOINTMENTS (Independent Denominator)
   const appointments = performanceData.filter(d => {
     const out = d.outcome.toLowerCase();
     const prospect = d.prospect.toLowerCase();
@@ -124,21 +122,20 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const totalRev = appointments.reduce((acc, curr) => acc + curr.revenue, 0);
 
   const callsDue = appointments.length;
-  const callsTaken = appointments.filter(d => 
-    !['no show', 'rescheduled', 'cancelled'].some(x => d.outcome.toLowerCase().includes(x))
-  ).length;
-
-  const callsClosed = appointments.filter(d => 
-    ['closed', 'deposit collected', 'paid', 'full pay'].some(x => d.outcome.toLowerCase().includes(x))
-  ).length;
+  const callsTaken = appointments.filter(d => !['no show', 'rescheduled', 'cancelled'].some(x => d.outcome.toLowerCase().includes(x))).length;
+  const callsClosed = appointments.filter(d => ['closed', 'deposit collected', 'paid', 'full pay'].some(x => d.outcome.toLowerCase().includes(x))).length;
   
   const showRate = callsDue > 0 ? (callsTaken / callsDue) * 100 : 0;
   const closeRate = callsTaken > 0 ? (callsClosed / callsTaken) * 100 : 0;
   
-  const avgCashAppt = callsDue > 0 ? totalCash / callsDue : 0;
-  const avgCashClose = callsClosed > 0 ? totalCash / callsClosed : 0;
+  // 5. INDEPENDENT MATH
+  // Denominator: Appointments Booked (Sales Sheet)
+  const avgCashAppt = callsDue > 0 ? totalCash / callsDue : 0; 
   
-  // FIXED METRIC: Cash per Application
+  // Denominator: Calls Closed (Sales Sheet)
+  const avgCashClose = callsClosed > 0 ? totalCash / callsClosed : 0; 
+  
+  // Denominator: Applications Submitted (Lead Sheet)
   const avgCashApplication = totalApplications > 0 ? totalCash / totalApplications : 0;
 
   const recentCalls = appointments.slice(0, 20);
@@ -174,7 +171,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const trend = Array.from(dayMap.entries());
   const maxCash = Math.max(...trend.map(([_, c]) => c), 1);
 
-  // Polyline points
   const linePoints: string[] = [];
   trend.forEach(([_, count], i) => {
       const x = (i / (trend.length - 1 || 1)) * 1000;
@@ -210,10 +206,10 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
         {/* MAIN DASHBOARD CONTENT */}
         <div className="space-y-6 relative z-10">
             
-            {/* ROW 1: THE TOP 3 KEY METRICS */}
+            {/* ROW 1: TOP 3 CARDS */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
-                {/* 1. Net Cash */}
+                {/* 1. NET CASH */}
                 <HeroCard 
                     label="Net Cash Collected" 
                     value={`$${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}`}
@@ -222,7 +218,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     borderColor="border-cyan-500/30"
                 />
 
-                 {/* 2. Total Revenue */}
+                 {/* 2. REVENUE */}
                 <div className="relative group overflow-hidden bg-zinc-900/40 border border-emerald-500/30 p-8 rounded-3xl font-sans">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/30 to-teal-900/10 opacity-50" />
                     <div className="relative z-10 h-full flex flex-col justify-between">
@@ -234,7 +230,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                              ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
                         </h2>
                         
-                        {/* Compact Breakdown Footer */}
                         <div className="flex items-center gap-4 pt-2 border-t border-emerald-500/20">
                             <div className="flex items-center gap-1.5">
                                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
@@ -250,7 +245,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     </div>
                 </div>
 
-                 {/* 3. Close Rate */}
+                 {/* 3. CLOSE RATE */}
                  <HeroCard 
                     label="Close Rate (Taken to Closed)" 
                     value={`${closeRate.toFixed(1)}%`}
@@ -262,13 +257,10 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 
             {/* ROW 2: ANALYTICS GRID */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {/* Funnel */}
                 <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} icon={<Users size={14}/>} />
                 <StatBox label="Calls Due" value={callsDue} icon={<Phone size={14}/>} />
                 <StatBox label="Calls Taken" value={callsTaken} icon={<Phone size={14} className="fill-zinc-500/20"/>} />
                 <StatBox label="Calls Closed" value={callsClosed} icon={<CheckCircle2 size={14} className="text-cyan-500"/>} highlight />
-
-                {/* Efficiency */}
                 <StatBox label="Total Applications" value={totalApplications} icon={<FileText size={14}/>} />
                 <StatBox label="Cash / Application" value={`$${avgCashApplication.toFixed(0)}`} />
                 <StatBox label="Cash / Appt" value={`$${avgCashAppt.toFixed(0)}`} />
@@ -286,8 +278,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 </div>
 
                 <div className="h-[220px] w-full relative z-10">
-                        {/* Y-Axis Grid */}
-                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
+                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
                         {[1, 0.5, 0].map(step => (
                             <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
                                 <span className="absolute -left-8 -top-2 text-[8px] font-bold text-zinc-700 w-6 text-right">
@@ -298,13 +289,12 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     </div>
 
                     <svg className="absolute inset-0 w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none" viewBox="0 0 1000 220">
-                            <defs>
+                        <defs>
                             <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.8"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1"/></linearGradient>
                             <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#fff" /><stop offset="100%" stopColor="#22d3ee" /></linearGradient>
                             <filter id="glow"><feGaussianBlur stdDeviation="2.5" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
                         </defs>
                         
-                        {/* BARS */}
                         {trend.map(([date, count], i) => {
                             const barHeight = (count / maxCash) * 220;
                             const xPos = (i / (trend.length - 1 || 1)) * 1000;
@@ -314,17 +304,21 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                                 <g key={i} className="group">
                                     <rect x={xPos - width/2} y={0} width={width} height="100%" fill="transparent" />
                                     {count > 0 && <rect x={xPos - width/2} y={220 - barHeight} width={width} height={barHeight} fill="url(#barGrad)" rx="4" className="transition-all duration-300 opacity-60 group-hover:opacity-100 group-hover:fill-cyan-400" />}
-                                    <foreignObject x={xPos - 50} y={220 - barHeight - 40} width="100" height="50" className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"><div className="flex justify-center"><div className="bg-white text-black text-[10px] font-black px-2 py-1 rounded shadow-[0_0_15px_rgba(255,255,255,0.5)] whitespace-nowrap">${count.toLocaleString()}</div></div></foreignObject>
+                                    <foreignObject x={xPos - 50} y={220 - barHeight - 40} width="100" height="50" className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                        <div className="flex justify-center">
+                                            <div className="bg-white text-black text-[10px] font-black px-2 py-1 rounded shadow-[0_0_15px_rgba(255,255,255,0.5)] whitespace-nowrap">
+                                                ${count.toLocaleString()}
+                                            </div>
+                                        </div>
+                                    </foreignObject>
                                 </g>
                             );
                         })}
 
-                        {/* NEON TREND LINE */}
                         <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} style={{ vectorEffect: 'non-scaling-stroke', filter: 'url(#glow)' }} className="pointer-events-none opacity-90" />
                     </svg>
 
-                        {/* X-Axis Labels */}
-                        <div className="absolute inset-x-0 bottom-0 flex justify-between px-2">
+                    <div className="absolute inset-x-0 bottom-0 flex justify-between px-2">
                         {trend.filter((_, i) => i % Math.ceil(trend.length / 8) === 0).map(([date], i) => (
                             <span key={i} className="text-[8px] font-bold text-zinc-600 uppercase">{date}</span>
                         ))}
@@ -332,7 +326,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 </div>
             </div>
 
-            {/* ROW 4: RECENT CALLS LOG */}
+            {/* ROW 4: RECENT CALLS */}
             <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl overflow-hidden">
                 <div className="p-6 border-b border-zinc-800/50 bg-zinc-900/20 flex justify-between items-center">
                     <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400">Recent Call Log</h3>

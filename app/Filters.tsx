@@ -1,153 +1,247 @@
 'use client';
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { Calendar, ChevronDown, X } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, Check } from 'lucide-react';
 
-interface FiltersProps {
-  platforms?: string[];
-  closers?: string[];
-  setters?: string[];
-}
-
-export default function Filters({ platforms = [], closers = [], setters = [] }: FiltersProps) {
+export default function Filters({ platforms = [], closers = [], setters = [] }: any) {
   const router = useRouter();
-  const pathname = usePathname(); // <--- THIS FIXES THE RESET BUTTON
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-
-  // State for internal logic
-  const [isOpen, setIsOpen] = useState(false);
   
-  // Get active params
-  const start = searchParams.get('start') || '';
-  const end = searchParams.get('end') || '';
-  const activePlatform = searchParams.get('platform') || '';
-  const activeCloser = searchParams.get('closer') || '';
-  const activeSetter = searchParams.get('setter') || '';
+  // -- STATE --
+  const [isOpen, setIsOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(new Date()); // For navigating the calendar
+  
+  // Get active dates from URL
+  const startParam = searchParams.get('start');
+  const endParam = searchParams.get('end');
+  
+  const [tempStart, setTempStart] = useState<string>(startParam || '');
+  const [tempEnd, setTempEnd] = useState<string>(endParam || '');
+  const [activePreset, setActivePreset] = useState<string>('');
 
-  // Apply a new filter
-  const applyFilter = (key: string, value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (value) params.set(key, value);
-    else params.delete(key);
-    router.push(`${pathname}?${params.toString()}`);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // -- PRESETS LOGIC --
+  const presets = [
+    { label: 'Today', days: 0 },
+    { label: 'Yesterday', days: 1, offset: 1 },
+    { label: 'Last 7 Days', days: 7 },
+    { label: 'Last 30 Days', days: 30 },
+    { label: 'Last 90 Days', days: 90 },
+    { label: 'Last 365 Days', days: 365 },
+    { label: 'All Time', days: -1 },
+  ];
+
+  const applyPreset = (preset: any) => {
+    setActivePreset(preset.label);
+    if (preset.label === 'All Time') {
+        setTempStart('');
+        setTempEnd('');
+        return;
+    }
+
+    const end = new Date();
+    const start = new Date();
+    
+    if (preset.label === 'Yesterday') {
+        start.setDate(end.getDate() - 1);
+        end.setDate(end.getDate() - 1);
+    } else {
+        start.setDate(end.getDate() - (preset.days - 1)); // -1 to include today
+    }
+
+    setTempStart(start.toISOString().split('T')[0]);
+    setTempEnd(end.toISOString().split('T')[0]);
+    // Sync view with start date
+    setViewDate(new Date(start));
   };
 
-  // Date Range Handler
-  const handleDateApply = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const s = formData.get('start') as string;
-    const e_date = formData.get('end') as string;
-    
+  // -- CALENDAR GENERATION --
+  const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+  const getFirstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
+
+  const renderCalendar = () => {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const daysInMonth = getDaysInMonth(year, month);
+    const firstDay = getFirstDayOfMonth(year, month);
+    const days = [];
+
+    // Empty slots for previous month
+    for (let i = 0; i < firstDay; i++) {
+      days.push(<div key={`empty-${i}`} className="h-8 w-8" />);
+    }
+
+    // Days
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const isSelected = dateStr === tempStart || dateStr === tempEnd;
+      const isInRange = tempStart && tempEnd && dateStr > tempStart && dateStr < tempEnd;
+      
+      days.push(
+        <button
+          key={d}
+          onClick={(e) => {
+            e.preventDefault();
+            if (!tempStart || (tempStart && tempEnd)) {
+                setTempStart(dateStr);
+                setTempEnd('');
+            } else {
+                if (dateStr < tempStart) {
+                    setTempEnd(tempStart);
+                    setTempStart(dateStr);
+                } else {
+                    setTempEnd(dateStr);
+                }
+            }
+            setActivePreset('');
+          }}
+          className={`h-8 w-8 text-[10px] font-bold rounded-md flex items-center justify-center transition-all
+            ${isSelected ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/50' : ''}
+            ${isInRange ? 'bg-blue-500/20 text-blue-200' : ''}
+            ${!isSelected && !isInRange ? 'text-zinc-400 hover:bg-zinc-800 hover:text-white' : ''}
+          `}
+        >
+          {d}
+        </button>
+      );
+    }
+    return days;
+  };
+
+  // -- APPLY TO URL --
+  const handleApply = () => {
     const params = new URLSearchParams(searchParams.toString());
-    if (s) params.set('start', s); else params.delete('start');
-    if (e_date) params.set('end', e_date); else params.delete('end');
-    
+    if (tempStart) params.set('start', tempStart); else params.delete('start');
+    if (tempEnd) params.set('end', tempEnd); else params.delete('end');
     router.push(`${pathname}?${params.toString()}`);
     setIsOpen(false);
   };
 
-  // RESET HANDLER (Fixed)
   const handleReset = () => {
-      // Pushes to the CURRENT pathname with NO params
+      setTempStart('');
+      setTempEnd('');
+      setActivePreset('');
       router.push(pathname);
       setIsOpen(false);
   };
 
+  // Close on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+        if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+            setIsOpen(false);
+        }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Sync state when URL changes
+  useEffect(() => {
+      if (startParam) setTempStart(startParam);
+      if (endParam) setTempEnd(endParam);
+  }, [startParam, endParam]);
+
+
   return (
-    <div className="flex items-center gap-3">
+    <div className="relative z-50" ref={containerRef}>
       
-      {/* 1. DATE PICKER */}
-      <div className="relative">
-        <button 
-            onClick={() => setIsOpen(!isOpen)} 
-            className={`px-3 py-2 rounded-lg flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider transition-all border ${start && end ? 'bg-zinc-100 text-black border-white' : 'bg-[#121214] border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'}`}
-        >
-            <Calendar size={12} className={start && end ? 'text-black' : ''}/>
-            <span>{start && end ? `${new Date(start).toLocaleDateString()} - ${new Date(end).toLocaleDateString()}` : 'Date Range'}</span>
-        </button>
+      {/* TRIGGER BUTTON */}
+      <button 
+        onClick={() => setIsOpen(!isOpen)} 
+        className={`px-4 py-2.5 rounded-xl flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider transition-all border shadow-sm
+            ${startParam || endParam 
+                ? 'bg-zinc-100 text-black border-white hover:bg-white' 
+                : 'bg-[#09090b] border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
+            }`}
+      >
+        <CalendarIcon size={14} className={startParam ? 'text-blue-600' : 'text-zinc-500'}/>
+        <span>
+            {startParam ? (
+                `${new Date(startParam).toLocaleDateString('en-US', {month:'short', day:'numeric'})} - ${endParam ? new Date(endParam).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : '...'}`
+            ) : (
+                'Select Dates'
+            )}
+        </span>
+        {(startParam || endParam) && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 ml-1 animate-pulse" />}
+      </button>
 
-        {isOpen && (
-            <>
-                <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-                <div className="absolute top-full left-0 mt-2 p-4 bg-[#121214] border border-zinc-800 rounded-xl shadow-2xl z-50 w-72 animate-in fade-in zoom-in-95 duration-200">
-                    <form onSubmit={handleDateApply} className="space-y-4">
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                                <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Start</label>
-                                <input name="start" type="date" defaultValue={start} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-blue-500/50" />
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">End</label>
-                                <input name="end" type="date" defaultValue={end} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-blue-500/50" />
-                            </div>
-                        </div>
-                        <button type="submit" className="w-full bg-white text-black font-black uppercase tracking-widest text-[10px] py-2.5 rounded-lg hover:bg-zinc-200">Apply Dates</button>
-                    </form>
+      {/* DROPDOWN PANEL */}
+      {isOpen && (
+        <div className="absolute top-full right-0 mt-3 p-0 bg-[#0c0c0c] border border-zinc-800 rounded-2xl shadow-2xl z-[100] w-[600px] flex overflow-hidden ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-200">
+            
+            {/* LEFT: PRESETS SIDEBAR */}
+            <div className="w-40 bg-zinc-900/50 border-r border-zinc-800 p-3 flex flex-col gap-1">
+                <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest px-2 py-2 mb-1">Quick Select</span>
+                {presets.map((p) => (
+                    <button
+                        key={p.label}
+                        onClick={() => applyPreset(p)}
+                        className={`text-left px-3 py-2.5 text-[10px] font-bold rounded-lg transition-all flex items-center justify-between
+                            ${activePreset === p.label 
+                                ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' 
+                                : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                            }`}
+                    >
+                        {p.label}
+                        {activePreset === p.label && <Check size={12} />}
+                    </button>
+                ))}
+            </div>
+
+            {/* RIGHT: CALENDAR AREA */}
+            <div className="flex-1 p-5">
+                {/* Header: Month Nav & Inputs */}
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1))} className="p-1.5 hover:bg-zinc-800 rounded-md text-zinc-400"><ChevronLeft size={14}/></button>
+                        <span className="text-sm font-bold text-white w-32 text-center">
+                            {viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                        </span>
+                        <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1))} className="p-1.5 hover:bg-zinc-800 rounded-md text-zinc-400"><ChevronRight size={14}/></button>
+                    </div>
+                    
+                    {/* Read-only Inputs */}
+                    <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5">
+                        <span className="text-[10px] font-mono text-zinc-300">{tempStart || 'Start'}</span>
+                        <span className="text-zinc-600">-</span>
+                        <span className="text-[10px] font-mono text-zinc-300">{tempEnd || 'End'}</span>
+                    </div>
                 </div>
-            </>
-        )}
-      </div>
 
-      <div className="h-4 w-px bg-zinc-800" />
+                {/* Calendar Grid */}
+                <div className="mb-6">
+                    <div className="grid grid-cols-7 mb-2 text-center">
+                        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
+                            <span key={d} className="text-[9px] font-bold text-zinc-600 uppercase">{d}</span>
+                        ))}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                        {renderCalendar()}
+                    </div>
+                </div>
 
-      {/* 2. PLATFORM SELECT */}
-      {platforms.length > 0 && (
-          <div className="relative group">
-            <select 
-                value={activePlatform} 
-                onChange={(e) => applyFilter('platform', e.target.value)}
-                className="appearance-none bg-[#121214] border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 px-3 py-2 pr-8 rounded-lg text-[10px] font-bold uppercase tracking-wider outline-none cursor-pointer transition-all"
-            >
-                <option value="">Select Platform</option>
-                {platforms.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none group-hover:text-zinc-300" />
-          </div>
+                {/* Action Buttons */}
+                <div className="flex items-center justify-between pt-4 border-t border-zinc-800/50">
+                    <button onClick={handleReset} className="text-[10px] font-bold text-zinc-500 hover:text-white uppercase tracking-wider px-2">
+                        Reset Filter
+                    </button>
+                    <div className="flex gap-2">
+                        <button onClick={() => setIsOpen(false)} className="px-4 py-2 rounded-lg border border-zinc-800 text-[10px] font-bold text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors">
+                            Cancel
+                        </button>
+                        <button onClick={handleApply} className="px-6 py-2 rounded-lg bg-white text-black text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 transition-colors shadow-lg shadow-white/10">
+                            Apply Dates
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
       )}
-
-      {/* 3. CLOSER SELECT */}
-      {closers.length > 0 && (
-          <div className="relative group">
-            <select 
-                value={activeCloser} 
-                onChange={(e) => applyFilter('closer', e.target.value)}
-                className="appearance-none bg-[#121214] border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 px-3 py-2 pr-8 rounded-lg text-[10px] font-bold uppercase tracking-wider outline-none cursor-pointer transition-all"
-            >
-                <option value="">Select Closer</option>
-                {closers.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none group-hover:text-zinc-300" />
-          </div>
-      )}
-
-      {/* 4. SETTER SELECT */}
-      {setters.length > 0 && (
-          <div className="relative group">
-            <select 
-                value={activeSetter} 
-                onChange={(e) => applyFilter('setter', e.target.value)}
-                className="appearance-none bg-[#121214] border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 px-3 py-2 pr-8 rounded-lg text-[10px] font-bold uppercase tracking-wider outline-none cursor-pointer transition-all"
-            >
-                <option value="">Select Setter</option>
-                {setters.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none group-hover:text-zinc-300" />
-          </div>
-      )}
-
-      {/* 5. RESET BUTTON */}
-      {(start || end || activePlatform || activeCloser || activeSetter) && (
-          <button 
-            onClick={handleReset}
-            className="ml-auto flex items-center gap-1.5 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-          >
-              <X size={12} />
-              Reset
-          </button>
-      )}
-
     </div>
   );
 }

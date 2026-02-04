@@ -256,7 +256,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                     <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
                         {[1, 0.5, 0].map(step => (
                             <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
-                                <span className="absolute -left-8 -top-2 text-[10px] font-bold text-zinc-500 w-6 text-right"> {/* Increased Size */}
+                                <span className="absolute -left-8 -top-2 text-[11px] font-bold text-zinc-400 w-6 text-right">
                                     ${((maxCash * step) / 1000).toFixed(0)}k
                                 </span>
                             </div>
@@ -275,17 +275,20 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                             const xPos = (i / (trend.length - 1 || 1)) * 1000;
                             const width = 800 / (trend.length || 1);
                             
+                            // Clamp tooltip Y so it doesn't get cut off at the top
+                            const tooltipY = Math.max(0, 220 - barHeight - 45);
+
                             return (
                                 <g key={i} className="group">
-                                    {/* Transparent hit area for easy hovering */}
+                                    {/* Transparent hit area */}
                                     <rect x={xPos - width/2} y={0} width={width} height="100%" fill="transparent" />
                                     
                                     {count > 0 && <rect x={xPos - width/2} y={220 - barHeight} width={width} height={barHeight} fill="url(#barGrad)" rx="4" className="transition-all duration-300 opacity-60 group-hover:opacity-100 group-hover:fill-cyan-400" />}
                                     
-                                    {/* Wider, Centered Tooltip */}
-                                    <foreignObject x={xPos - 60} y={220 - barHeight - 45} width="120" height="50" className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                    {/* FIXED TOOLTIP: Wider and properly centered */}
+                                    <foreignObject x={xPos - 75} y={tooltipY} width="150" height="50" className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                                         <div className="flex justify-center">
-                                            <div className="bg-white text-black text-[11px] font-black px-3 py-1.5 rounded-lg shadow-[0_0_20px_rgba(255,255,255,0.4)] whitespace-nowrap">
+                                            <div className="bg-white text-black text-[12px] font-black px-4 py-2 rounded-lg shadow-[0_0_20px_rgba(255,255,255,0.4)] whitespace-nowrap border border-zinc-200">
                                                 ${count.toLocaleString()}
                                             </div>
                                         </div>
@@ -299,7 +302,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 
                     <div className="absolute inset-x-0 bottom-0 flex justify-between px-2">
                         {trend.filter((_, i) => i % Math.ceil(trend.length / 8) === 0).map(([date], i) => (
-                            <span key={i} className="text-[10px] font-bold text-zinc-500 uppercase">{date}</span> /* Increased Size */
+                            <span key={i} className="text-[11px] font-bold text-zinc-400 uppercase">{date}</span>
                         ))}
                     </div>
                 </div>

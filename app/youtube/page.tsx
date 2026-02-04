@@ -5,7 +5,7 @@ export const revalidate = 0;
 import React from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
-import { Youtube, TrendingUp, DollarSign, Users, Phone, CheckCircle2, Filter, Banknote, Activity } from 'lucide-react';
+import { Youtube, TrendingUp, DollarSign, Users, Phone, CheckCircle2, Filter, Banknote, Activity, Calendar } from 'lucide-react';
 import Link from 'next/link';
 import Filters from '../Filters'; 
 
@@ -22,7 +22,7 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    // Date Filtering Logic (Using params from your existing Filters component)
+    // Date Filtering Logic
     const startDate = startStr ? new Date(startStr) : null;
     const endDate = endStr ? new Date(endStr) : null;
     if (endDate) endDate.setHours(23, 59, 59, 999);
@@ -48,16 +48,10 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
     // 2. PROCESS SALES
     const salesByName = new Map();
     const salesByEmail = new Map();
-    const platformsSet = new Set<string>();
-    const closersSet = new Set<string>();
-    const settersSet = new Set<string>();
 
     salesRows.forEach(row => {
         const get = (h: string) => row.get(salesDoc.sheetsByIndex[0].headerValues.find(header => header.toLowerCase().includes(h.toLowerCase())) || '');
         
-        if(get('Closer Name')) closersSet.add(get('Closer Name'));
-        if(get('Setter Name')) settersSet.add(get('Setter Name'));
-
         const data = {
             cash: parseFloat((get('Cash Collected') || '0').replace(/[$, ]/g, '')) || 0,
             revenue: parseFloat((get('Revenue') || '0').replace(/[$, ]/g, '')) || 0,
@@ -86,8 +80,6 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
         
         // APPLY DATE FILTER
         if (!isWithinRange(dateStr)) return;
-
-        if(get('platform')) platformsSet.add(get('platform'));
 
         // Video ID Extraction
         let videoId = 'Unknown Video';
@@ -120,16 +112,13 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
         } catch { return { ...v, title: `Video ${v.id}`, thumbnail: null }; }
     }));
 
-    return {
-        stats,
-        filters: { platforms: Array.from(platformsSet), closers: Array.from(closersSet), setters: Array.from(settersSet) }
-    };
-  } catch (e) { return { stats: [], filters: { platforms: [], closers: [], setters: [] } }; }
+    return stats;
+  } catch (e) { return []; }
 }
 
 // --- CLIENT COMPONENTS ---
 const UtmBuilder = () => (
-    <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-8 mb-8 shadow-lg">
+    <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-8 mb-8 shadow-lg relative z-10">
         <div className="flex items-center gap-2 mb-6">
             <Youtube size={18} className="text-red-500" />
             <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-400">YouTube Link Factory</h2>
@@ -172,8 +161,7 @@ const SortButton = ({ label, icon, active, href }: any) => (
 // --- MAIN PAGE ---
 export default async function YouTubePage({ searchParams }: { searchParams: Promise<any> }) {
   const params = await searchParams;
-  // Pass date params directly to data fetching function
-  const { stats, filters } = await getYouTubeAttribution(params.start, params.end);
+  const stats = await getYouTubeAttribution(params.start, params.end);
   const sort = params.sort || 'aov';
 
   // Sorting
@@ -205,7 +193,7 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
       <div className="max-w-[1600px] mx-auto space-y-12">
         
         {/* HEADER */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-10">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-10 relative z-[100]">
             <div>
                 <div className="flex items-center gap-2 mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Traffic Source</span>
@@ -215,17 +203,17 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                 <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Content <span className="text-red-500">Engine</span></h1>
             </div>
             
-            {/* FILTERS COMPONENT (Now handles calendar automatically) */}
-            <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg flex flex-wrap items-center gap-4 shadow-sm">
+            {/* 1. FILTER FIX: Z-Index increased + Empty arrays to hide closers/setters */}
+            <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg flex flex-wrap items-center gap-4 shadow-sm relative z-[100]">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
-                <Filters platforms={filters.platforms} closers={filters.closers} setters={filters.setters} />
+                <Filters platforms={[]} closers={[]} setters={[]} />
             </div>
         </div>
 
         <UtmBuilder />
 
         {/* ANALYTICS HEADER & SORTING */}
-        <div className="space-y-6">
+        <div className="space-y-6 relative z-10">
             <div className="flex flex-col items-center gap-4">
                 <h2 className="text-3xl font-black text-zinc-200 tracking-tight uppercase">Content Performance</h2>
                 <p className="text-zinc-500 text-sm">Track performance metrics for your YouTube content</p>
@@ -266,7 +254,7 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
         </div>
 
         {/* VIDEO GRID */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 relative z-0">
             {sortedStats.map((video) => {
                 const closeRate = video.taken > 0 ? (video.closed / video.taken) * 100 : 0;
                 const showRate = video.calls > 0 ? (video.taken / video.calls) * 100 : 0;
@@ -291,11 +279,6 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                             <MetricRow label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-blue-400" icon={<Activity size={10} />} />
                             <MetricRow label="Close Rate" value={`${closeRate.toFixed(1)}%`} color="text-blue-400" icon={<TrendingUp size={10} />} />
                             <MetricRow label="AOV" value={`$${aov.toLocaleString(undefined, {maximumFractionDigits:0})}`} color="text-purple-400" icon={<DollarSign size={10} />} />
-                        </div>
-                        
-                        <div className="bg-[#121214] py-3 px-5 border-t border-zinc-800 flex justify-between items-center text-[10px] font-bold uppercase">
-                            <span className="text-zinc-500">Closes / Booked</span>
-                            <span className="text-orange-400">{video.calls > 0 ? ((video.closed/video.calls)*100).toFixed(1) : 0}%</span>
                         </div>
                     </div>
                 );

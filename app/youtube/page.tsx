@@ -6,7 +6,6 @@ import React from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
 import { Youtube, TrendingUp, DollarSign, Users, Phone, CheckCircle2, Filter, Banknote, Activity } from 'lucide-react';
-// Import the existing Filters component
 import Filters from '../Filters'; 
 
 // --- HELPERS ---
@@ -48,7 +47,6 @@ async function getYouTubeAttribution() {
             return k ? row.get(k) : '';
         };
 
-        // Collect Filter Data
         const closer = get('Closer Name');
         const setter = get('Setter Name');
         if (closer) closersSet.add(closer);
@@ -66,7 +64,6 @@ async function getYouTubeAttribution() {
             return parseFloat(val.toString().replace(/[$, ]/g, '')) || 0;
         };
 
-        // Determine Call Stats
         const isTaken = !['no show', 'cancelled', 'rescheduled'].some(x => outcome.includes(x));
         const isClosed = ['closed', 'paid', 'deposit', 'full pay'].some(x => outcome.includes(x));
 
@@ -116,7 +113,6 @@ async function getYouTubeAttribution() {
              return k ? row.get(k) : '';
         };
 
-        // Collect Filter Data
         const platform = getLeadVal('What platform did') || 'Other';
         if (platform) platformsSet.add(platform);
 
@@ -135,7 +131,6 @@ async function getYouTubeAttribution() {
         const leadEmail = getLeadVal('Email') || '';
         const intent = (getLeadVal('willing to invest') || getLeadVal('right now') || getLeadVal('funds') || '').toLowerCase();
         
-        // CHECK QUALIFICATION
         const isQualified = intent.includes('3k') || intent.includes('5k') || intent.includes('10k') || intent.includes('100k');
 
         const fullName = `${firstName} ${lastName}`;
@@ -162,7 +157,6 @@ async function getYouTubeAttribution() {
         current.closed += finalSale.closed;
     });
 
-    // 3. ENRICH WITH METADATA
     const rawStats = Array.from(videoStats.values()).filter(v => v.id !== 'Unknown Video');
     
     const enrichedStats = await Promise.all(rawStats.map(async (vid) => {
@@ -198,7 +192,7 @@ async function getYouTubeAttribution() {
   }
 }
 
-// --- CLIENT SIDE UTM BUILDER (Inlined for simplicity) ---
+// --- CLIENT SIDE UTM BUILDER ---
 const UtmBuilderSection = () => {
     return (
         <form className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-8 mb-12 shadow-lg">
@@ -231,10 +225,9 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
   const { stats, filters } = await getYouTubeAttribution();
 
   const filteredStats = stats.filter(video => {
-      // Add any specific video filtering logic here if needed
+      // Platform filter logic would go here if tracking matches
       return true;
   });
-
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-red-500/30">
@@ -274,7 +267,6 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
         {/* VIDEO GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {filteredStats.map((video) => {
-                // Calculations
                 const closeRate = video.taken > 0 ? (video.closed / video.taken) * 100 : 0;
                 const showRate = video.calls > 0 ? (video.taken / video.calls) * 100 : 0;
                 const aov = video.closed > 0 ? video.cash / video.closed : 0;
@@ -296,10 +288,10 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                             </div>
                         </div>
 
-                        {/* REORDERED METRICS GRID (Removed "Taken Calls" row) */}
-                        <div className="p-5 grid grid-cols-2 gap-y-4 gap-x-4 text-xs">
+                        {/* ORGANIZED METRICS GRID (2-Column) */}
+                        <div className="p-5 grid grid-cols-2 gap-x-8 gap-y-4 text-xs">
                             
-                            {/* Row 1: Top Funnel */}
+                            {/* Row 1: Volume */}
                             <MetricRow label="Total Leads" value={video.leads} color="text-zinc-300" icon={<Users size={10} />} />
                             <MetricRow label="Qualified Leads" value={video.qualified} color="text-white" icon={<Filter size={10} />} />
 
@@ -307,17 +299,17 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                             <MetricRow label="Cash Collected" value={`$${video.cash.toLocaleString()}`} color="text-emerald-400" icon={<DollarSign size={10} />} />
                             <MetricRow label="Total Revenue" value={`$${video.revenue.toLocaleString()}`} color="text-emerald-400" icon={<Banknote size={10} />} />
 
-                            {/* Row 3: Calls & Show Rate */}
+                            {/* Row 3: Call Stats (Booked & Show Rate) */}
                             <MetricRow label="Booked Calls" value={video.calls} color="text-zinc-300" icon={<Phone size={10} />} />
                             <MetricRow label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-blue-400" icon={<Activity size={10} />} />
 
-                             {/* Row 4: Close Rate (Balanced grid) */}
+                             {/* Row 4: Closing */}
                             <MetricRow label="Close Rate" value={`${closeRate.toFixed(1)}%`} color="text-blue-400" icon={<TrendingUp size={10} />} />
-                            <div>{/* Empty slot for grid balance */}</div>
+                            <div>{/* Empty column to keep layout balanced if needed, or put another metric */}</div>
 
-                            {/* Row 5: AOV Footer */}
-                            <div className="col-span-2 pt-3 border-t border-zinc-800/50 flex justify-between items-center">
-                                <div className="flex items-center gap-1.5">
+                            {/* Footer: AOV */}
+                            <div className="col-span-2 pt-3 border-t border-zinc-800/50 flex justify-between items-center mt-1">
+                                <div className="flex items-center gap-2">
                                     <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">AOV:</span>
                                     <span className="text-sm font-black text-purple-400">${aov.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
                                 </div>
@@ -334,13 +326,13 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
   );
 }
 
-// --- SUB-COMPONENTS ---
+// --- SUB-COMPONENT ---
 function MetricRow({ label, value, color, icon }: any) {
     return (
-        <div className="flex justify-between items-center">
-            <div className="flex items-center gap-1.5 text-zinc-500">
+        <div className="flex justify-between items-center w-full">
+            <div className="flex items-center gap-2 text-zinc-500">
                 {icon}
-                <span className="text-[10px] font-medium">{label}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wide">{label}</span>
             </div>
             <span className={`font-black tracking-tight ${color}`}>{value}</span>
         </div>

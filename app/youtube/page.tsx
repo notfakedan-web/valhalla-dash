@@ -225,7 +225,7 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
   const { stats, filters } = await getYouTubeAttribution();
 
   const filteredStats = stats.filter(video => {
-      // Platform filter logic would go here if tracking matches
+      // Platform filter logic can be added here if needed
       return true;
   });
 
@@ -288,7 +288,7 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                             </div>
                         </div>
 
-                        {/* ORGANIZED METRICS GRID (2-Column) */}
+                        {/* ORGANIZED METRICS GRID (No Footer) */}
                         <div className="p-5 grid grid-cols-2 gap-x-8 gap-y-4 text-xs">
                             
                             {/* Row 1: Volume */}
@@ -303,17 +303,9 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                             <MetricRow label="Booked Calls" value={video.calls} color="text-zinc-300" icon={<Phone size={10} />} />
                             <MetricRow label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-blue-400" icon={<Activity size={10} />} />
 
-                             {/* Row 4: Closing */}
+                             {/* Row 4: Closing & AOV */}
                             <MetricRow label="Close Rate" value={`${closeRate.toFixed(1)}%`} color="text-blue-400" icon={<TrendingUp size={10} />} />
-                            <div>{/* Empty column to keep layout balanced if needed, or put another metric */}</div>
-
-                            {/* Footer: AOV */}
-                            <div className="col-span-2 pt-3 border-t border-zinc-800/50 flex justify-between items-center mt-1">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">AOV:</span>
-                                    <span className="text-sm font-black text-purple-400">${aov.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
-                                </div>
-                            </div>
+                            <MetricRow label="AOV" value={`$${aov.toLocaleString(undefined, {maximumFractionDigits:0})}`} color="text-purple-400" icon={<DollarSign size={10} />} />
 
                         </div>
                     </div>

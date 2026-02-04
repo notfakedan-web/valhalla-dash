@@ -1,10 +1,13 @@
+// 1. FORCE DYNAMIC REFRESH
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 import React from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
-import Filters from '../Filters'; 
+import { Users, Filter, TrendingUp, Search, Calendar, Mail, Globe } from 'lucide-react';
 
+// --- HELPER: FETCH LEADS DATA ---
 async function getLeadsData() {
   try {
     const serviceAccountAuth = new JWT({
@@ -13,270 +16,254 @@ async function getLeadsData() {
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    const sheetId = process.env.LEAD_FLOW_SHEET_ID;
-    if (!sheetId) throw new Error("LEAD_FLOW_SHEET_ID is missing");
-
-    const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
+    const doc = new GoogleSpreadsheet(process.env.LEAD_FLOW_SHEET_ID!, serviceAccountAuth);
     await doc.loadInfo();
     const sheet = doc.sheetsByIndex[0];
-    await sheet.loadHeaderRow();
     const rows = await sheet.getRows();
 
     return rows.map(row => {
       const getVal = (search: string) => {
-          const foundKey = sheet.headerValues.find(h => h.trim().toLowerCase().includes(search.toLowerCase()));
+          const foundKey = sheet.headerValues.find(h => h.toLowerCase().trim().includes(search.toLowerCase().trim()));
           return foundKey ? row.get(foundKey) : '';
       };
       
-      const rawDate = getVal('submitted at') || getVal('date') || '';
-      let parsedDate = new Date(rawDate);
-      // Handle DD/MM/YYYY vs MM/DD/YYYY formats if standard parsing fails
-      if (isNaN(parsedDate.getTime()) && rawDate.includes('/')) {
-        const parts = rawDate.split(' ')[0].split('/');
-        if (parts.length === 3) {
-            parsedDate = new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
-        }
-      }
-
       return {
-        source: getVal('SOURCE') || 'Other',
-        funnel: getVal('FUNNEL') || 'N/A',
-        cashOnHand: getVal('willing to invest') || getVal('RIGHT NOW') || 'Unknown',
-        date: rawDate,
-        isoDate: !isNaN(parsedDate.getTime()) ? parsedDate : null,
-        name: getVal('NAME') || 'N/A',
-        email: getVal('EMAIL') || 'N/A',
+        firstName: getVal('First Name') || 'Unknown',
+        lastName: getVal('Last Name') || '',
+        email: getVal('Email') || 'N/A',
+        phone: getVal('Phone') || 'N/A',
+        source: getVal('utm_source') || 'Organic',
+        funds: getVal('funds') || '', // Assuming column "funds you have available"
+        date: getVal('Submitted At') || getVal('Date') || '',
       };
     });
-  } catch (error) { console.error(error); return []; }
+  } catch (error) { return []; }
 }
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<any> }) {
   const params = await searchParams;
   const allLeads = await getLeadsData();
 
-  // DATE RANGE LOGIC
+  const today = new Date();
   const start = params.start ? new Date(params.start) : null;
   const end = params.end ? new Date(params.end) : null;
   if (end) end.setHours(23, 59, 59, 999);
 
-  // 1. FILTER LOGIC
-  const filtered = allLeads.filter(d => {
-    if (start && d.isoDate && d.isoDate < start) return false;
-    if (end && d.isoDate && d.isoDate > end) return false;
-    if (params.platform && d.source !== params.platform) return false;
+  // 1. FILTER DATA
+  const filteredLeads = allLeads.filter(l => {
+    if (!l.date) return false;
+    let d = new Date(l.date);
+    // Handle non-standard date formats if necessary
+    if (isNaN(d.getTime()) && l.date.includes('/')) {
+        const p = l.date.split(' ')[0].split('/');
+        if (p.length === 3) d = new Date(parseInt(p[2]), parseInt(p[0])-1, parseInt(p[1]));
+    }
+    
+    if (start && d < start) return false;
+    if (end && d > end) return false;
     return true;
   });
 
-  // 2. SORT LOGIC (Newest First)
-  filtered.sort((a, b) => {
-      if (!a.isoDate) return 1;
-      if (!b.isoDate) return -1;
-      return b.isoDate.getTime() - a.isoDate.getTime();
-  });
-
-  // 3. CHART DATA PREP
-  const dailyCounts: Record<string, number> = {};
+  const totalLeads = filteredLeads.length;
   
-  // Pre-fill dates for smooth graph
-  if (start && end) {
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-          const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-          dailyCounts[label] = 0;
-      }
+  // Logic: "Qualified" if funds are NOT "$0-$500" (Customize this logic as needed)
+  const qualifiedLeads = filteredLeads.filter(l => l.funds && !l.funds.includes('$0-$500') && !l.funds.includes('0-500')).length;
+  const qualificationRate = totalLeads > 0 ? (qualifiedLeads / totalLeads) * 100 : 0;
+
+  const recentLeads = filteredLeads.slice(0, 20);
+
+  // 2. GRAPH DATA (Daily Lead Volume)
+  let graphStart = start; let graphEnd = end;
+  if (!graphStart && filteredLeads.length > 0) { 
+      const times = filteredLeads.map(d => new Date(d.date).getTime()).filter(t => !isNaN(t)); 
+      if(times.length) graphStart = new Date(Math.min(...times)); 
   }
+  if (!graphEnd && filteredLeads.length > 0) { 
+      const times = filteredLeads.map(d => new Date(d.date).getTime()).filter(t => !isNaN(t)); 
+      if(times.length) graphEnd = new Date(Math.max(...times)); 
+  }
+  if (!graphStart) graphStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  if (!graphEnd) graphEnd = today;
 
-  filtered.forEach(d => {
-      const label = d.isoDate ? d.isoDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Unknown';
-      if (label !== 'Unknown') {
-        dailyCounts[label] = (dailyCounts[label] || 0) + 1;
-      }
-  });
-
-  const timeTrend = Object.entries(dailyCounts).sort((a, b) => {
-    return new Date(a[0]).getTime() - new Date(b[0]).getTime();
+  const dayMap = new Map<string, number>();
+  for (let d = new Date(graphStart); d <= graphEnd; d.setDate(d.getDate() + 1)) {
+      dayMap.set(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 0);
+  }
+  filteredLeads.forEach(l => {
+    const d = new Date(l.date);
+    if (!isNaN(d.getTime())) {
+        const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        if (dayMap.has(label)) dayMap.set(label, (dayMap.get(label) || 0) + 1);
+    }
   });
   
-  const maxDayLeads = Math.max(...timeTrend.map(t => t[1]), 5);
+  const trend = Array.from(dayMap.entries());
+  const maxLeads = Math.max(...trend.map(([_, c]) => c), 5); // Minimum scale of 5
 
-  const cashMap: Record<string, number> = {};
-  filtered.forEach(d => {
-      const bracket = d.cashOnHand || 'Unknown';
-      cashMap[bracket] = (cashMap[bracket] || 0) + 1;
+  // 3. CHART CONSTANTS
+  const CHART_HEIGHT = 220;
+  const CHART_WIDTH = 1000;
+  const BAR_MAX_HEIGHT = 180;
+
+  const linePoints: string[] = [];
+  trend.forEach(([_, count], i) => {
+      const x = (i / (trend.length - 1 || 1)) * CHART_WIDTH + (CHART_WIDTH / (trend.length || 1)) / 2;
+      const y = CHART_HEIGHT - ((count / maxLeads) * BAR_MAX_HEIGHT);
+      linePoints.push(`${x},${y}`);
   });
-  const cashBrackets = Object.entries(cashMap).sort((a, b) => b[1] - a[1]);
-
-  // FIXED LOGIC: Case-insensitive check for High Ticket Brackets
-  const qualifiedLeads = filtered.filter(l => {
-      const val = l.cashOnHand.toLowerCase();
-      // Matches "3k-5k", "5k-10k", "10k+"
-      return val.includes('3k') || val.includes('5k') || val.includes('10k');
-  }).length;
 
   return (
-    <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-cyan-500/30">
-      <div className="max-w-[1600px] mx-auto p-6 md:p-10">
+    <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans">
+      <div className="max-w-[1600px] mx-auto">
         
-        {/* HEADER & FILTERS */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-12 relative z-[100]">
+        {/* HEADER */}
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-8 relative z-[100]">
             <div>
-                <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Analytics</span>
-                    <div className="w-1 h-1 rounded-full bg-zinc-700" />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-500">Leads Intelligence</span>
+                <div className="flex items-center gap-2 mb-1">
+                    <Search size={16} className="text-blue-500" />
+                    <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">Pipeline Intelligence</span>
                 </div>
-                <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Lead Flow <span className="text-cyan-500">Vault</span></h1>
+                <h1 className="text-3xl font-bold tracking-tight text-white">Lead Flow <span className="text-blue-500">Vault</span></h1>
             </div>
             
-            {/* Filter Container - Sizing matched to Home */}
-            <div className="bg-zinc-900/40 border border-zinc-800/50 backdrop-blur-md p-2 pl-6 rounded-2xl flex flex-wrap items-center gap-4">
-                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
-                <Filters 
-                    platforms={Array.from(new Set(allLeads.map(d => d.source)))} 
-                    closers={[]} 
-                    setters={[]} 
-                    resetPath="/leads" // Fixes the reset button behavior
-                />
+            {/* Simple Date Filter Indicator */}
+            <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 pr-4 rounded-lg flex items-center gap-3 shadow-sm">
+                <Calendar size={14} className="text-zinc-500"/>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                    {start ? start.toLocaleDateString() : 'All Time'} — {end ? end.toLocaleDateString() : 'Today'}
+                </span>
             </div>
         </div>
 
-        {/* LAYOUT GRID */}
         <div className="space-y-6 relative z-10">
             
-            {/* KPI ROW */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* ROW 1: TOP METRICS (Professional Style) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 
-                {/* Total Leads Card */}
-                <div className="relative group overflow-hidden bg-gradient-to-br from-cyan-600 to-blue-700 p-6 rounded-3xl shadow-2xl shadow-cyan-900/20">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-                        <svg width="60" height="60" viewBox="0 0 24 24" fill="white"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-                    </div>
-                    {/* UPDATED LABEL */}
-                    <p className="text-[10px] font-black text-white/60 uppercase mb-1 tracking-widest">Total Leads</p>
-                    <h2 className="text-4xl font-black text-white tracking-tighter tabular-nums">{filtered.length}</h2>
-                    <div className="mt-3 flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                        <span className="text-[9px] font-bold text-white/80 uppercase">Inbound</span>
-                    </div>
-                </div>
+                {/* 1. Total Leads */}
+                <HeroCard 
+                    label="Total Leads" 
+                    value={totalLeads.toLocaleString()} 
+                    icon={<Users size={18} className="text-blue-400" />}
+                    accentColor="blue"
+                />
 
-                {/* Qualified Leads */}
-                <div className="bg-zinc-900/40 border border-zinc-800/50 p-6 rounded-3xl hover:border-cyan-500/20 transition-all">
-                    <p className="text-[10px] font-black text-zinc-500 uppercase mb-1 tracking-widest">Qualified (High Ticket)</p>
-                    <h3 className="text-4xl font-black text-white tracking-tighter italic tabular-nums">{qualifiedLeads}</h3>
-                </div>
+                 {/* 2. Qualified Leads */}
+                <HeroCard 
+                    label="Qualified (High Ticket)" 
+                    value={qualifiedLeads.toLocaleString()} 
+                    icon={<Filter size={18} className="text-indigo-400" />}
+                    accentColor="indigo"
+                />
 
-                {/* Spacers for 4-col grid */}
-                <div className="hidden lg:block lg:col-span-2"></div>
+                 {/* 3. Qualification Rate */}
+                 <HeroCard 
+                    label="Qualification Rate" 
+                    value={`${qualificationRate.toFixed(1)}%`} 
+                    icon={<TrendingUp size={18} className="text-emerald-400" />}
+                    accentColor="emerald"
+                />
             </div>
 
-            {/* CHART ROW */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* LINE CHART */}
-                <div className="lg:col-span-2 bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8 shadow-inner relative overflow-hidden">
-                    <div className="flex items-center justify-between mb-8 relative z-10">
-                        <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Growth Velocity</h3>
-                        <span className="text-[10px] font-bold text-zinc-600 italic">Daily Submission Volume</span>
+            {/* ROW 2: LEAD VOLUME GRAPH (Fixed HTML Tooltips) */}
+            <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm relative overflow-hidden h-[340px]">
+                <div className="flex items-center justify-between mb-8 relative z-20">
+                    <h3 className="text-xs font-bold uppercase text-zinc-400 tracking-widest">Lead Volume Trend</h3>
+                    <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                        <span className="text-[10px] font-medium text-zinc-500">Daily Inbound</span>
                     </div>
+                </div>
+
+                <div className="h-[220px] w-full relative">
                     
-                    <div className="h-[250px] w-full relative pt-4 pl-4">
+                    {/* LAYER 1: SVG Graph */}
+                    <div className="absolute inset-0 z-0">
                         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
-                            {[1, 0.75, 0.5, 0.25, 0].map(step => (
-                                <div key={step} className="w-full border-t border-zinc-800/30 relative">
-                                    <span className="absolute -left-8 -top-2 text-[8px] font-bold text-zinc-700 w-6 text-right">
-                                        {(maxDayLeads * step).toFixed(0)}
+                            {[1, 0.5, 0].map(step => (
+                                <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
+                                    <span className="absolute -left-8 -top-2 text-[10px] font-medium text-zinc-600 w-6 text-right">
+                                        {((maxLeads * step)).toFixed(0)}
                                     </span>
                                 </div>
                             ))}
                         </div>
 
-                        {timeTrend.length > 0 ? (
-                          <>
-                            <div className="absolute inset-0 flex items-end justify-between px-2 pb-6 z-10">
-                                {timeTrend.map(([date, count], i) => (
-                                    <div key={i} className="flex-1 flex flex-col justify-end group items-center relative h-full">
-                                        <div className="absolute inset-0 bg-cyan-500/0 group-hover:bg-cyan-500/5 transition-colors rounded-t-sm" />
-                                        <div 
-                                            className="w-full bg-cyan-500/20 group-hover:bg-cyan-500 transition-all rounded-t-sm relative min-w-[4px] max-w-[20px]" 
-                                            style={{ height: `${(count / maxDayLeads) * 100}%` }} 
-                                        />
-                                        <div className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-800 text-white text-[9px] font-bold px-2 py-1 rounded shadow-lg z-20 whitespace-nowrap pointer-events-none">
-                                            {date}: {count} Leads
-                                        </div>
-                                        <span className="absolute -bottom-6 text-[8px] font-bold text-zinc-600 uppercase hidden group-hover:block whitespace-nowrap">
-                                            {date}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                          </>
-                        ) : (
-                            <div className="h-full flex items-center justify-center text-zinc-600 text-xs font-bold uppercase tracking-widest">
-                                No data for selected range
-                            </div>
-                        )}
-                        
-                        <div className="absolute -left-6 bottom-1/2 transform -rotate-90 origin-left text-[8px] font-black uppercase tracking-widest text-zinc-700">Volume (Leads)</div>
-                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest text-zinc-700">Timeline (Date)</div>
+                        <svg className="w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
+                            <defs>
+                                <linearGradient id="leadBarGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6" stopOpacity="0.6"/><stop offset="100%" stopColor="#3b82f6" stopOpacity="0.1"/></linearGradient>
+                                <linearGradient id="leadLineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#60a5fa" /><stop offset="100%" stopColor="#818cf8" /></linearGradient>
+                            </defs>
+                            {trend.map(([_, count], i) => {
+                                const barHeight = (count / maxLeads) * BAR_MAX_HEIGHT;
+                                const width = (CHART_WIDTH / trend.length) * 0.8;
+                                const x = (i * (CHART_WIDTH / trend.length)) + ((CHART_WIDTH / trend.length) - width) / 2;
+                                const y = CHART_HEIGHT - barHeight;
+                                return count > 0 && <rect key={i} x={x} y={y} width={width} height={barHeight} fill="url(#leadBarGrad)" rx="2" className="opacity-40" />;
+                            })}
+                            <polyline fill="none" stroke="url(#leadLineGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} className="opacity-90" />
+                        </svg>
                     </div>
-                </div>
 
-                {/* INVESTMENT PROFILES */}
-                <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-8">
-                    <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest mb-6">Investment Profiles</h3>
-                    <div className="space-y-4">
-                        {cashBrackets.map(([bracket, count]) => (
-                            <div key={bracket} className="group">
-                                <div className="flex justify-between text-[10px] font-bold uppercase text-zinc-500 mb-1">
-                                    <span className="truncate max-w-[150px]">{bracket}</span>
-                                    <span className="text-white">{count} Leads</span>
+                    {/* LAYER 2: HTML TOOLTIPS (Perfect Text) */}
+                    <div className="absolute inset-0 z-10 pl-2 pb-6 flex items-end justify-between">
+                        {trend.map(([date, count], i) => (
+                            <div key={i} className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-crosshair hover:bg-white/5 transition-colors rounded-lg">
+                                {/* Tooltip */}
+                                <div 
+                                    className="absolute opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-0 mb-2 pointer-events-none transform translate-y-[-10px] group-hover:translate-y-0"
+                                    style={{ bottom: `${(count / maxLeads) * 80}%`, marginBottom: '15px' }}
+                                >
+                                    <div className="bg-[#18181b] border border-zinc-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow-xl whitespace-nowrap flex flex-col items-center">
+                                        <span>{count} Leads</span>
+                                        <div className="absolute -bottom-1 w-2 h-2 bg-[#18181b] border-b border-r border-zinc-700 transform rotate-45"></div>
+                                    </div>
                                 </div>
-                                <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                                    <div className="h-full bg-cyan-500 group-hover:bg-cyan-400 transition-all" style={{ width: `${(count / filtered.length) * 100}%` }} />
-                                </div>
+                                {/* Date Label */}
+                                <div className="absolute -bottom-6 text-[10px] font-medium text-zinc-600 uppercase group-hover:text-zinc-300 transition-colors">{date}</div>
                             </div>
                         ))}
                     </div>
+
                 </div>
             </div>
 
-            {/* DATA TABLE */}
-            <div className="bg-zinc-900/20 border border-zinc-800/50 rounded-[40px] overflow-hidden backdrop-blur-xl shadow-2xl">
-                <div className="p-8 border-b border-zinc-800/50 flex justify-between items-center bg-zinc-900/40">
-                    <h3 className="text-sm font-black uppercase tracking-widest text-white">Acquisition Log</h3>
-                    <span className="text-[10px] font-bold text-zinc-500 italic">Showing {filtered.length} Records</span>
+            {/* ROW 3: RECENT LEADS TABLE */}
+            <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-sm">
+                <div className="p-4 border-b border-zinc-800/50 flex justify-between items-center bg-zinc-900/20">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Incoming Lead Log</h3>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead className="bg-zinc-900/60 text-zinc-500 text-[10px] font-black uppercase tracking-widest border-b border-zinc-800/50">
-                            <tr>
-                                <th className="px-8 py-5">Origin</th>
-                                <th className="px-8 py-5">Investment Intent</th>
-                                <th className="px-8 py-5">Timestamp</th>
-                                <th className="px-8 py-5">Identity</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-800/30">
-                            {filtered.slice(0, 50).map((lead, i) => (
-                                <tr key={i} className="hover:bg-cyan-500/[0.03] transition-colors group">
-                                    <td className="px-8 py-6">
-                                        <span className="bg-zinc-800 px-3 py-1 rounded-full text-[10px] font-black text-zinc-400 group-hover:text-cyan-400 transition-colors uppercase">{lead.source}</span>
-                                    </td>
-                                    <td className="px-8 py-6 text-sm font-bold text-white max-w-[280px] truncate uppercase tracking-tighter">{lead.cashOnHand}</td>
-                                    <td className="px-8 py-6 text-[11px] text-zinc-500 font-mono italic">
-                                        {lead.isoDate ? lead.isoDate.toLocaleString() : lead.date}
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <div className="flex flex-col">
-                                            <span className="text-sm font-black text-white uppercase tracking-tight">{lead.name}</span>
-                                            <span className="text-[10px] text-zinc-500 font-medium">{lead.email}</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                <div className="p-4 overflow-x-auto">
+                     <div className="min-w-[800px]">
+                        <div className="grid grid-cols-5 text-[10px] font-medium uppercase text-zinc-500 tracking-wider px-4 mb-3">
+                            <div className="col-span-2">Name</div>
+                            <div>Source</div>
+                            <div>Funds</div>
+                            <div className="text-right">Submitted</div>
+                        </div>
+                        <div className="space-y-1">
+                        {recentLeads.map((lead, i) => (
+                            <div key={i} className="grid grid-cols-5 items-center p-3 bg-zinc-800/20 rounded-lg border border-transparent hover:border-zinc-700/50 transition-all group text-xs">
+                                <div className="col-span-2 flex flex-col">
+                                    <span className="font-bold text-zinc-200">{lead.firstName} {lead.lastName}</span>
+                                    <span className="text-[10px] text-zinc-500 lowercase">{lead.email}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Globe size={12} className="text-zinc-600" />
+                                    <span className="text-zinc-300 font-medium capitalize">{lead.source}</span>
+                                </div>
+                                <div>
+                                    <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${getFundsStyle(lead.funds)}`}>
+                                        {lead.funds || 'N/A'}
+                                    </span>
+                                </div>
+                                <div className="text-right text-zinc-500 tabular-nums">
+                                    {lead.date ? new Date(lead.date).toLocaleDateString() : 'N/A'}
+                                </div>
+                            </div>
+                        ))}
+                        </div>
+                     </div>
                 </div>
             </div>
 
@@ -284,4 +271,32 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       </div>
     </div>
   );
+}
+
+// --- COMPONENTS ---
+function HeroCard({ label, value, icon, accentColor }: any) {
+    const colorMap: any = {
+        blue: 'from-blue-500/50 to-transparent border-blue-500/20',
+        indigo: 'from-indigo-500/50 to-transparent border-indigo-500/20',
+        emerald: 'from-emerald-500/50 to-transparent border-emerald-500/20',
+    };
+    const accentClass = colorMap[accentColor] || 'from-zinc-500/50 to-transparent border-zinc-500/20';
+
+    return (
+        <div className={`relative overflow-hidden bg-zinc-900/40 border ${accentClass.split(' ')[2]} backdrop-blur-sm p-6 rounded-2xl shadow-sm flex flex-col justify-between h-36`}>
+            <div className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${accentClass.split(' ')[0]} ${accentClass.split(' ')[1]}`}></div>
+             <div className="flex justify-between items-start mb-3">
+                <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">{label}</p>
+                {icon}
+            </div>
+            <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums mt-auto">{value}</h2>
+        </div>
+    )
+}
+
+function getFundsStyle(funds: string) {
+    if (!funds) return 'bg-zinc-800 text-zinc-500 border-zinc-700';
+    if (funds.includes('$10k') || funds.includes('10K') || funds.includes('$5k')) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+    if (funds.includes('$3k') || funds.includes('3K')) return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+    return 'bg-zinc-800/50 text-zinc-400 border-zinc-700/50';
 }

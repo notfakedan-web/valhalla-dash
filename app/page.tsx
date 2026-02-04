@@ -146,18 +146,6 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
   const trend = Array.from(dayMap.entries());
   const maxCash = Math.max(...trend.map(([_, c]) => c), 1);
 
-  // Chart Constants
-  const CHART_HEIGHT = 220;
-  const CHART_WIDTH = 1000;
-  const BAR_MAX_HEIGHT = 180;
-
-  const linePoints: string[] = [];
-  trend.forEach(([_, count], i) => {
-      const x = (i / (trend.length - 1 || 1)) * CHART_WIDTH + (CHART_WIDTH / trend.length / 2); // Center of bar
-      const y = CHART_HEIGHT - ((count / maxCash) * BAR_MAX_HEIGHT);
-      linePoints.push(`${x},${y}`);
-  });
-
   const platforms = Array.from(new Set(allRawData.map(d => d.platform))).filter(Boolean) as string[];
   const closers = Array.from(new Set(allRawData.map(d => d.closer))).filter(Boolean) as string[];
   const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
@@ -186,36 +174,60 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
         {/* MAIN DASHBOARD */}
         <div className="space-y-6 relative z-10">
             
-            {/* ROW 1: TOP 3 CARDS */}
+            {/* ROW 1: TOP 3 CARDS (REORDERED & ENHANCED) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <HeroCard label="Net Cash Collected" value={`$${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}`} icon={<DollarSign size={24} className="text-cyan-400" />} gradient="from-cyan-900/30 to-blue-900/10" borderColor="border-cyan-500/30" />
+                
+                {/* 1. Net Cash */}
+                <HeroCard 
+                    label="Net Cash Collected" 
+                    value={`$${totalCash.toLocaleString(undefined, { minimumFractionDigits: 0 })}`} 
+                    icon={<DollarSign size={24} className="text-cyan-400" />} 
+                    gradient="from-cyan-900/40 to-blue-900/20" // Stronger gradient
+                    borderColor="border-cyan-500/40"
+                    shadow="shadow-lg shadow-cyan-900/20"
+                />
 
-                <div className="relative group overflow-hidden bg-zinc-900/40 border border-emerald-500/30 p-8 rounded-3xl font-sans">
-                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/30 to-teal-900/10 opacity-50" />
-                    <div className="relative z-10 h-full flex flex-col justify-between">
-                         <div className="flex justify-between items-start mb-2">
-                            <p className="text-xs font-black text-zinc-400 uppercase tracking-widest">Total Revenue</p>
+                 {/* 2. Total Revenue (REORDERED) */}
+                <div className="relative group overflow-hidden bg-zinc-900/40 border border-emerald-500/40 p-8 rounded-3xl font-sans shadow-lg shadow-emerald-900/20">
+                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/40 to-teal-900/20 opacity-60" />
+                    
+                    {/* Content container with consistent spacing */}
+                    <div className="relative z-10 h-full flex flex-col justify-start gap-4">
+                         <div className="flex justify-between items-start">
+                            <p className="text-xs font-black text-zinc-300 uppercase tracking-widest">Total Revenue</p>
                             <TrendingUp size={24} className="text-emerald-400" />
                         </div>
-                        <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums mb-2">
-                             ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
-                        </h2>
-                        <div className="flex items-center gap-4 pt-2 border-t border-emerald-500/20">
+
+                        {/* Breakdown Moved ABOVE main number */}
+                        <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1.5">
                                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
                                 <span className="text-[9px] font-bold uppercase text-emerald-300">New Cash:</span>
-                                <span className="text-xs font-black text-white tabular-nums">${newCash.toLocaleString()}</span>
+                                <span className="text-sm font-black text-white tabular-nums">${newCash.toLocaleString()}</span>
                             </div>
                              <div className="flex items-center gap-1.5">
                                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
                                 <span className="text-[9px] font-bold uppercase text-cyan-300">MRR:</span>
-                                <span className="text-xs font-black text-white tabular-nums">${mrrCash.toLocaleString()}</span>
+                                <span className="text-sm font-black text-white tabular-nums">${mrrCash.toLocaleString()}</span>
                             </div>
                         </div>
+
+                        {/* Main Number */}
+                        <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">
+                             ${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                        </h2>
                     </div>
                 </div>
 
-                 <HeroCard label="Close Rate (Taken to Closed)" value={`${closeRate.toFixed(1)}%`} icon={<Percent size={24} className="text-purple-400" />} gradient="from-purple-900/30 to-pink-900/10" borderColor="border-purple-500/30" />
+                 {/* 3. Close Rate */}
+                 <HeroCard 
+                    label="Close Rate (Taken to Closed)" 
+                    value={`${closeRate.toFixed(1)}%`} 
+                    icon={<Percent size={24} className="text-purple-400" />} 
+                    gradient="from-purple-900/40 to-pink-900/20"
+                    borderColor="border-purple-500/40"
+                    shadow="shadow-lg shadow-purple-900/20"
+                />
             </div>
 
             {/* ROW 2: ANALYTICS GRID */}
@@ -230,7 +242,7 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 <StatBox label="Cash / Close" value={`$${avgCashClose.toFixed(0)}`} highlight />
             </div>
 
-            {/* ROW 3: CASH COLLECTED GRAPH (FIXED: HTML OVERLAY) */}
+            {/* ROW 3: CASH COLLECTED GRAPH (HTML OVERLAY) */}
             <div className="bg-[#0c0c0c] border border-zinc-800/50 rounded-3xl p-6 shadow-inner relative overflow-hidden h-[340px]">
                 <div className="flex items-center justify-between mb-8 relative z-20">
                     <h3 className="text-xs font-black uppercase text-zinc-400 tracking-widest">Cash Collected</h3>
@@ -241,65 +253,43 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
                 </div>
 
                 <div className="h-[220px] w-full relative">
-                    
-                    {/* LAYER 1: SVG GRAPH (Stretches to fill) */}
+                    {/* SVG GRAPH LAYER */}
                     <div className="absolute inset-0 z-0">
-                        {/* Background Grid */}
                         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
                             {[1, 0.5, 0].map(step => (
                                 <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
-                                    <span className="absolute -left-8 -top-2 text-[10px] font-bold text-zinc-500 w-6 text-right">
-                                        ${((maxCash * step) / 1000).toFixed(0)}k
-                                    </span>
+                                    <span className="absolute -left-8 -top-2 text-[10px] font-bold text-zinc-500 w-6 text-right">${((maxCash * step) / 1000).toFixed(0)}k</span>
                                 </div>
                             ))}
                         </div>
-
-                        {/* The Actual Graph */}
-                        <svg className="w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
+                        <svg className="w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none" viewBox="0 0 1000 220">
                             <defs>
                                 <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.9"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.2"/></linearGradient>
                                 <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#fff" /><stop offset="100%" stopColor="#22d3ee" /></linearGradient>
                                 <filter id="glow"><feGaussianBlur stdDeviation="3" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
                             </defs>
-                            {/* Bars */}
                             {trend.map(([_, count], i) => {
-                                const barHeight = (count / maxCash) * BAR_MAX_HEIGHT;
-                                const width = (CHART_WIDTH / trend.length) * 0.8;
-                                const x = (i * (CHART_WIDTH / trend.length)) + ((CHART_WIDTH / trend.length) - width) / 2;
-                                const y = CHART_HEIGHT - barHeight;
+                                const barHeight = (count / maxCash) * 180;
+                                const width = (1000 / trend.length) * 0.8;
+                                const x = (i * (1000 / trend.length)) + ((1000 / trend.length) - width) / 2;
+                                const y = 220 - barHeight;
                                 return count > 0 && <rect key={i} x={x} y={y} width={width} height={barHeight} fill="url(#barGrad)" rx="4" className="opacity-60" />;
                             })}
-                            {/* Line */}
                             <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} style={{ filter: 'url(#glow)' }} className="opacity-90" />
                         </svg>
                     </div>
 
-                    {/* LAYER 2: HTML OVERLAY (For crisp tooltips) */}
+                    {/* HTML TOOLTIP LAYER */}
                     <div className="absolute inset-0 z-10 pl-2 pb-6 flex items-end justify-between">
-                        {trend.map(([date, count], i) => {
-                            const barPercentage = (count / maxCash) * 100;
-                            return (
-                                <div key={i} className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-crosshair hover:bg-white/5 transition-colors rounded-lg">
-                                    {/* The Tooltip (HTML, not SVG) */}
-                                    <div 
-                                        className="absolute opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-full mb-2 bg-white text-black text-[12px] font-black px-3 py-1.5 rounded-md shadow-xl whitespace-nowrap z-50 pointer-events-none"
-                                        style={{ bottom: `${(count / maxCash) * 80}%`, marginBottom: '10px' }} // Dynamic positioning
-                                    >
-                                        ${count.toLocaleString()}
-                                        {/* Little arrow */}
-                                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white rotate-45"></div>
-                                    </div>
-                                    
-                                    {/* Date Label */}
-                                    <div className="absolute -bottom-6 text-[10px] font-bold text-zinc-500 uppercase group-hover:text-white transition-colors">
-                                        {date}
-                                    </div>
+                        {trend.map(([date, count], i) => (
+                            <div key={i} className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-crosshair hover:bg-white/5 transition-colors rounded-lg">
+                                <div className="absolute opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-full mb-2 bg-white text-black text-[12px] font-black px-3 py-1.5 rounded-md shadow-xl whitespace-nowrap z-50 pointer-events-none" style={{ bottom: `${(count / maxCash) * 80}%`, marginBottom: '10px' }}>
+                                    ${count.toLocaleString()}<div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white rotate-45"></div>
                                 </div>
-                            );
-                        })}
+                                <div className="absolute -bottom-6 text-[10px] font-bold text-zinc-500 uppercase group-hover:text-white transition-colors">{date}</div>
+                            </div>
+                        ))}
                     </div>
-
                 </div>
             </div>
 
@@ -338,13 +328,14 @@ export default async function ValhallaDashboard({ searchParams }: { searchParams
 }
 
 // --- COMPONENTS ---
-function HeroCard({ label, value, icon, gradient, borderColor }: any) {
+// Updated HeroCard for consistent spacing and visual pop
+function HeroCard({ label, value, icon, gradient, borderColor, shadow }: any) {
     return (
-        <div className={`relative group overflow-hidden bg-zinc-900/40 border ${borderColor} p-8 rounded-3xl font-sans`}>
-            <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-50`} />
-            <div className="relative z-10 h-full flex flex-col justify-between">
-                 <div className="flex justify-between items-start mb-4">
-                    <p className="text-xs font-black text-zinc-400 uppercase tracking-widest">{label}</p>
+        <div className={`relative group overflow-hidden bg-zinc-900/40 border ${borderColor} p-8 rounded-3xl font-sans ${shadow}`}>
+            <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-60`} />
+            <div className="relative z-10 h-full flex flex-col justify-start gap-4">
+                 <div className="flex justify-between items-start">
+                    <p className="text-xs font-black text-zinc-300 uppercase tracking-widest">{label}</p>
                     {icon}
                 </div>
                 <h2 className="text-5xl font-black text-white tracking-tighter tabular-nums">{value}</h2>

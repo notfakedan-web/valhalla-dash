@@ -5,7 +5,7 @@ export const revalidate = 0;
 import React from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
-import { Youtube, TrendingUp, DollarSign, Users, Phone, CheckCircle2, Filter, Banknote, Activity, MousePointer, Calendar } from 'lucide-react';
+import { Youtube, TrendingUp, DollarSign, Users, Phone, CheckCircle2, Filter, Banknote, Activity } from 'lucide-react';
 import Link from 'next/link';
 import Filters from '../Filters'; 
 
@@ -14,13 +14,27 @@ const cleanName = (name: string) => name ? name.toLowerCase().replace(/[^a-z0-9]
 const cleanEmail = (email: string) => email ? email.toLowerCase().trim() : '';
 
 // --- DATA FETCHING ---
-async function getYouTubeAttribution() {
+async function getYouTubeAttribution(startStr?: string, endStr?: string) {
   try {
     const serviceAccountAuth = new JWT({
       email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
       key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
+
+    // Date Filtering Logic (Using params from your existing Filters component)
+    const startDate = startStr ? new Date(startStr) : null;
+    const endDate = endStr ? new Date(endStr) : null;
+    if (endDate) endDate.setHours(23, 59, 59, 999);
+
+    const isWithinRange = (dateStr: string) => {
+        if (!startDate && !endDate) return true;
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return false;
+        if (startDate && d < startDate) return false;
+        if (endDate && d > endDate) return false;
+        return true;
+    };
 
     // 1. LOAD DATA
     const salesDoc = new GoogleSpreadsheet(process.env.SHEET_ID!, serviceAccountAuth);
@@ -68,7 +82,11 @@ async function getYouTubeAttribution() {
 
     leadsRows.forEach(row => {
         const get = (h: string) => row.get(leadsDoc.sheetsByIndex[0].headerValues.find(header => header.toLowerCase().includes(h.toLowerCase())) || '');
+        const dateStr = get('Submitted At') || get('Date');
         
+        // APPLY DATE FILTER
+        if (!isWithinRange(dateStr)) return;
+
         if(get('platform')) platformsSet.add(get('platform'));
 
         // Video ID Extraction
@@ -124,28 +142,29 @@ const UtmBuilder = () => (
     </div>
 );
 
-const SummaryCard = ({ label, value, highlight, icon }: { label: string, value: string, highlight?: 'green' | 'blue' | 'purple', icon?: any }) => {
-    const styles = {
-        green: 'bg-emerald-950/20 border-emerald-500/30 text-emerald-400 shadow-[0_0_15px_-5px_rgba(16,185,129,0.1)]',
-        blue: 'bg-blue-950/20 border-blue-500/30 text-blue-400 shadow-[0_0_15px_-5px_rgba(59,130,246,0.1)]',
-        purple: 'bg-purple-950/20 border-purple-500/30 text-purple-400 shadow-[0_0_15px_-5px_rgba(168,85,247,0.1)]',
+const SummaryCard = ({ label, value, highlight, icon }: any) => {
+    const styles: any = {
+        green: 'bg-emerald-950/20 border-emerald-500/30 text-emerald-400 shadow-[0_0_20px_-10px_rgba(16,185,129,0.3)]',
+        blue: 'bg-blue-950/20 border-blue-500/30 text-blue-400 shadow-[0_0_20px_-10px_rgba(59,130,246,0.3)]',
+        purple: 'bg-purple-950/20 border-purple-500/30 text-purple-400 shadow-[0_0_20px_-10px_rgba(168,85,247,0.3)]',
         default: 'bg-[#121214] border-zinc-800/60 text-white'
     };
-    const theme = highlight ? styles[highlight] : styles.default;
+    const theme = styles[highlight] || styles.default;
 
     return (
-        <div className={`${theme} border rounded-xl p-4 flex flex-col justify-between h-24`}>
-            <div className="flex justify-between items-start">
+        <div className={`${theme} border rounded-xl p-4 flex flex-col justify-between h-24 relative overflow-hidden group`}>
+            {highlight && <div className={`absolute inset-0 bg-${highlight}-500/5 opacity-0 group-hover:opacity-100 transition-opacity`} />}
+            <div className="flex justify-between items-start relative z-10">
                 <span className={`text-[10px] font-bold uppercase tracking-wider ${highlight ? 'opacity-90' : 'text-zinc-500'}`}>{label}</span>
                 {icon && <div className="opacity-80">{icon}</div>}
             </div>
-            <span className="text-2xl font-black tracking-tight">{value}</span>
+            <span className="text-2xl font-black tracking-tight relative z-10">{value}</span>
         </div>
     );
 };
 
 const SortButton = ({ label, icon, active, href }: any) => (
-    <Link href={href} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${active ? 'bg-blue-600 text-white' : 'bg-[#18181b] text-zinc-400 hover:text-white border border-zinc-800'}`}>
+    <Link href={href} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${active ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'bg-[#121214] text-zinc-400 hover:text-white border border-zinc-800'}`}>
         {icon} {label}
     </Link>
 );
@@ -153,10 +172,11 @@ const SortButton = ({ label, icon, active, href }: any) => (
 // --- MAIN PAGE ---
 export default async function YouTubePage({ searchParams }: { searchParams: Promise<any> }) {
   const params = await searchParams;
-  const { stats, filters } = await getYouTubeAttribution();
+  // Pass date params directly to data fetching function
+  const { stats, filters } = await getYouTubeAttribution(params.start, params.end);
   const sort = params.sort || 'aov';
 
-  // Sorting Logic
+  // Sorting
   const sortedStats = [...stats].sort((a, b) => {
       if (sort === 'cash_call') return (b.cash/b.calls||0) - (a.cash/a.calls||0);
       if (sort === 'cash_app') return (b.cash/b.qualified||0) - (a.cash/a.qualified||0);
@@ -164,7 +184,7 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
       return (b.cash/b.closed||0) - (a.cash/a.closed||0); // Default AOV
   });
 
-  // Calculate Aggregates
+  // Aggregates
   const totals = stats.reduce((acc: any, v: any) => ({
       leads: acc.leads + v.leads,
       qualified: acc.qualified + v.qualified,
@@ -182,10 +202,10 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans p-6 md:p-10">
-      <div className="max-w-[1600px] mx-auto space-y-8">
+      <div className="max-w-[1600px] mx-auto space-y-12">
         
         {/* HEADER */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-10">
             <div>
                 <div className="flex items-center gap-2 mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Traffic Source</span>
@@ -194,32 +214,36 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                 </div>
                 <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Content <span className="text-red-500">Engine</span></h1>
             </div>
-            <div className="flex gap-4">
-                <div className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg flex items-center gap-2 text-xs font-bold text-zinc-400">
-                    <Calendar size={14}/> <span>Pick a date range</span>
-                </div>
+            
+            {/* FILTERS COMPONENT (Now handles calendar automatically) */}
+            <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg flex flex-wrap items-center gap-4 shadow-sm">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
+                <Filters platforms={filters.platforms} closers={filters.closers} setters={filters.setters} />
             </div>
         </div>
 
         <UtmBuilder />
 
-        {/* SORTING & AGGREGATES */}
-        <div className="space-y-4">
-            <div className="flex flex-col md:flex-row justify-between items-end gap-4">
-                <div className="space-y-2">
-                    <p className="text-[10px] font-bold uppercase text-zinc-500">Sort by Metric</p>
-                    <div className="flex flex-wrap gap-2">
-                        <SortButton label="AOV" icon={<TrendingUp size={14}/>} active={sort === 'aov'} href="?sort=aov" />
-                        <SortButton label="Cash per Call" icon={<DollarSign size={14}/>} active={sort === 'cash_call'} href="?sort=cash_call" />
-                        <SortButton label="Cash per Application" icon={<DollarSign size={14}/>} active={sort === 'cash_app'} href="?sort=cash_app" />
-                        <SortButton label="Cash per Opt-in" icon={<DollarSign size={14}/>} active={sort === 'cash_optin'} href="?sort=cash_optin" />
-                    </div>
+        {/* ANALYTICS HEADER & SORTING */}
+        <div className="space-y-6">
+            <div className="flex flex-col items-center gap-4">
+                <h2 className="text-3xl font-black text-zinc-200 tracking-tight uppercase">Content Performance</h2>
+                <p className="text-zinc-500 text-sm">Track performance metrics for your YouTube content</p>
+            </div>
+
+            <div className="flex flex-col md:flex-row justify-center items-center gap-4 pt-4">
+                <span className="text-[10px] font-bold uppercase text-zinc-500">Sort by Metric</span>
+                <div className="flex flex-wrap justify-center gap-2">
+                    <SortButton label="AOV" icon={<TrendingUp size={14}/>} active={sort === 'aov'} href={`?sort=aov&start=${params.start||''}&end=${params.end||''}`} />
+                    <SortButton label="Cash per Call" icon={<DollarSign size={14}/>} active={sort === 'cash_call'} href={`?sort=cash_call&start=${params.start||''}&end=${params.end||''}`} />
+                    <SortButton label="Cash per Application" icon={<DollarSign size={14}/>} active={sort === 'cash_app'} href={`?sort=cash_app&start=${params.start||''}&end=${params.end||''}`} />
+                    <SortButton label="Cash per Opt-in" icon={<DollarSign size={14}/>} active={sort === 'cash_optin'} href={`?sort=cash_optin&start=${params.start||''}&end=${params.end||''}`} />
                 </div>
             </div>
 
-            {/* UNIFIED SUMMARY CARDS ROW (Totals Moved Here) */}
+            {/* UNIFIED SUMMARY GRID */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-3">
-                {/* Standard Metrics */}
+                {/* Standard Funnel */}
                 <SummaryCard label="Applications" value={totals.qualified.toLocaleString()} />
                 <SummaryCard label="Opt-ins" value={totals.leads.toLocaleString()} />
                 <SummaryCard label="AOV" value={`$${aggAov.toLocaleString(undefined, {maximumFractionDigits:0})}`} />
@@ -229,13 +253,13 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                 <SummaryCard label="Avg. Cash/App" value={`$${aggCashApp.toFixed(0)}`} />
                 <SummaryCard label="Avg. Cash/Opt-in" value={`$${aggCashOpt.toFixed(0)}`} />
 
-                {/* HIGHLIGHTED TOTALS (Moved Up) */}
+                {/* Highlighted Totals */}
                 <SummaryCard label="Total Videos" value={stats.length.toString()} highlight="blue" icon={<Youtube size={14}/>} />
                 <SummaryCard label="Total Calls" value={totals.calls.toLocaleString()} highlight="purple" icon={<Phone size={14}/>} />
                 <SummaryCard label="Total Cash" value={`$${(totals.cash/1000).toFixed(1)}k`} highlight="green" icon={<DollarSign size={14}/>} />
             </div>
 
-            {/* PAGINATION BAR */}
+            {/* PAGINATION */}
             <div className="bg-[#121214] border border-zinc-800 rounded-lg py-3 px-6 text-center text-xs font-bold text-zinc-500 uppercase tracking-wider">
                 Page 1 of 1 | Showing {sortedStats.length} videos (Total: {sortedStats.length})
             </div>
@@ -283,7 +307,7 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
   );
 }
 
-// --- SUB-COMPONENTS ---
+// --- SUB-COMPONENT ---
 const MetricRow = ({ label, value, color, icon }: any) => (
     <div className="flex justify-between items-center w-full">
         <div className="flex items-center gap-2 text-zinc-500">{icon}<span className="text-[10px] font-bold uppercase tracking-wide">{label}</span></div>

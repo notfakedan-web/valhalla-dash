@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { Youtube, TrendingUp, DollarSign, Users, Phone, CheckCircle2, Filter, Banknote, Activity, Calendar, Copy, Check, Link as LinkIcon, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Youtube, TrendingUp, DollarSign, Users, Phone, Filter, Banknote, Activity, Check, Link as LinkIcon } from 'lucide-react';
 import Link from 'next/link';
 import Filters from '../Filters'; 
 
@@ -42,89 +42,85 @@ const SortButton = ({ label, icon, active, href }: any) => (
 
 // --- MAIN CLIENT COMPONENT ---
 export default function YouTubeClient({ stats, totals, params, sort }: any) {
-    // State for the "Link Factory" inputs
     const [baseUrl, setBaseUrl] = useState('');
     const [manualVideoUrl, setManualVideoUrl] = useState('');
     const [copiedId, setCopiedId] = useState<string | null>(null);
     const [manualCopied, setManualCopied] = useState(false);
     
-    // NEW: Local state to hold "Just Created" videos so they appear instantly
+    // Optimistic videos now store the 'savedUrl' used to create them
     const [optimisticVideos, setOptimisticVideos] = useState<any[]>([]);
 
-    // Helper: Extract ID from YouTube URL
     const extractVideoId = (url: string) => {
         if (!url) return '';
         if (url.includes('youtu.be/')) return url.split('youtu.be/')[1].split('?')[0];
         if (url.includes('v=')) return url.split('v=')[1].split('&')[0];
-        return url; // fallback, assumes ID
+        return url; 
     };
 
-    // 1. Handle "Generate Tracking Link" (Big Button)
+    // 1. GENERATE LINK (Header Button)
     const handleManualGenerate = async () => {
-        const targetUrl = baseUrl || "https://your-landing-page.com";
-        const separator = targetUrl.includes('?') ? '&' : '?';
+        // Enforce URL entry
+        if (!baseUrl) {
+            alert("Please enter your Typeform/Landing Page URL first.");
+            return;
+        }
+
+        const separator = baseUrl.includes('?') ? '&' : '?';
         const vidId = extractVideoId(manualVideoUrl);
-        
-        // A. Copy Logic
         const utmContent = vidId ? `&utm_content=${vidId}` : '';
-        const link = `${targetUrl}${separator}utm_source=youtube&utm_medium=organic${utmContent}`;
+        const link = `${baseUrl}${separator}utm_source=youtube&utm_medium=organic${utmContent}`;
         
         navigator.clipboard.writeText(link);
         setManualCopied(true);
         setTimeout(() => setManualCopied(false), 2000);
 
-        // B. "Create Video" Logic (Optimistic Update)
+        // Optimistic Update
         if (vidId) {
-            // Check if it's already in the main list or our local list
             const existsInStats = stats.some((v: any) => v.id === vidId);
             const existsInLocal = optimisticVideos.some((v: any) => v.id === vidId);
 
             if (!existsInStats && !existsInLocal) {
-                // Fetch basic metadata client-side if possible, or use defaults
                 let newTitle = "New Tracked Video";
                 try {
-                    // Try to fetch title via oEmbed
                     const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vidId}&format=json`);
                     if (res.ok) {
                         const data = await res.json();
                         newTitle = data.title;
                     }
-                } catch (e) {
-                    console.log("Could not fetch title, using default");
-                }
+                } catch (e) { console.log("Could not fetch title"); }
 
                 const newVideo = {
                     id: vidId,
                     title: newTitle,
                     thumbnail: `https://i.ytimg.com/vi/${vidId}/mqdefault.jpg`,
-                    leads: 0, 
-                    qualified: 0, 
-                    cash: 0, 
-                    revenue: 0, 
-                    calls: 0,
-                    taken: 0, 
-                    closed: 0,
-                    // REMOVED 'isNew' flag so it looks identical to others
+                    leads: 0, qualified: 0, cash: 0, revenue: 0, calls: 0, taken: 0, closed: 0,
+                    savedUrl: baseUrl // <--- CRITICAL: REMEMBER THIS URL FOR THIS SESSION
                 };
                 
-                // Add to the FRONT of the local list
                 setOptimisticVideos(prev => [newVideo, ...prev]);
             }
         }
     };
 
-    // 2. Handle "Copy Link" (Video Cards)
-    const handleCardCopy = (videoId: string) => {
-        const targetUrl = baseUrl || "https://your-landing-page.com";
+    // 2. COPY LINK (Card Button)
+    // Now accepts the whole video object to check for a 'savedUrl'
+    const handleCardCopy = (video: any) => {
+        // Use the URL saved with the video (if new) OR the current input box
+        const targetUrl = video.savedUrl || baseUrl;
+
+        if (!targetUrl) {
+            alert("Please enter your Typeform/Landing Page URL in the box above to generate this link.");
+            return;
+        }
+
         const separator = targetUrl.includes('?') ? '&' : '?';
-        const link = `${targetUrl}${separator}utm_source=youtube&utm_medium=organic&utm_content=${videoId}`;
+        const link = `${targetUrl}${separator}utm_source=youtube&utm_medium=organic&utm_content=${video.id}`;
         
         navigator.clipboard.writeText(link);
-        setCopiedId(videoId);
+        setCopiedId(video.id);
         setTimeout(() => setCopiedId(null), 2000);
     };
 
-    // Combine Server Stats + Local Optimistic Stats
     const displayVideos = [...optimisticVideos, ...stats];
 
     return (
@@ -157,7 +153,7 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                     <div className="grid md:grid-cols-2 gap-6 mb-6">
                         <input 
                             type="text" 
-                            placeholder="Landing Page URL (e.g. https://start.com)" 
+                            placeholder="Landing Page URL (e.g. https://form.typeform.com/to/xyz)" 
                             value={baseUrl}
                             onChange={(e) => setBaseUrl(e.target.value)}
                             className="bg-[#0a0a0a] border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:border-red-500/50 outline-none" 
@@ -252,7 +248,7 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                                 {/* VIDEO CARD COPY BUTTON */}
                                 <div className="mt-auto p-4 border-t border-zinc-800 bg-[#0c0c0e]">
                                     <button
-                                        onClick={() => handleCardCopy(video.id)}
+                                        onClick={() => handleCardCopy(video)}
                                         className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 border ${
                                             copiedId === video.id 
                                             ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 

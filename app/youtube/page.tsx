@@ -9,8 +9,9 @@ import { Youtube, TrendingUp, DollarSign, Users, Phone, CheckCircle2, Filter, Ba
 import Link from 'next/link';
 import Filters from '../Filters'; 
 
-// --- HELPERS ---
-const cleanName = (name: string) => name ? name.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+// --- ROBUST HELPERS ---
+// Removes everything except letters to handle cases like "John Doe" vs "John Doe (Client)" better
+const cleanName = (name: string) => name ? name.toLowerCase().replace(/[^a-z]/g, '') : '';
 const cleanEmail = (email: string) => email ? email.toLowerCase().trim() : '';
 
 // --- DATA FETCHING ---
@@ -22,7 +23,7 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    // Date Filtering Logic
+    // Date Logic
     const startDate = startStr ? new Date(startStr) : null;
     const endDate = endStr ? new Date(endStr) : null;
     if (endDate) endDate.setHours(23, 59, 59, 999);
@@ -39,71 +40,104 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
     // 1. LOAD DATA
     const salesDoc = new GoogleSpreadsheet(process.env.SHEET_ID!, serviceAccountAuth);
     await salesDoc.loadInfo();
-    const salesRows = await salesDoc.sheetsByIndex[0].getRows();
+    const salesSheet = salesDoc.sheetsByIndex[0];
+    const salesRows = await salesSheet.getRows();
 
     const leadsDoc = new GoogleSpreadsheet(process.env.LEAD_FLOW_SHEET_ID!, serviceAccountAuth);
     await leadsDoc.loadInfo();
-    const leadsRows = await leadsDoc.sheetsByIndex[0].getRows();
+    const leadsSheet = leadsDoc.sheetsByIndex[0];
+    const leadsRows = await leadsSheet.getRows();
 
-    // 2. PROCESS SALES
+    // 2. PROCESS SALES (Build Maps for BOTH Name and Email)
     const salesByName = new Map();
     const salesByEmail = new Map();
 
     salesRows.forEach(row => {
-        const get = (h: string) => row.get(salesDoc.sheetsByIndex[0].headerValues.find(header => header.toLowerCase().includes(h.toLowerCase())) || '');
-        
-        const data = {
-            cash: parseFloat((get('Cash Collected') || '0').replace(/[$, ]/g, '')) || 0,
-            revenue: parseFloat((get('Revenue') || '0').replace(/[$, ]/g, '')) || 0,
-            calls: 1,
-            taken: !['no show', 'cancelled', 'rescheduled'].some(x => (get('Call Outcome')||'').toLowerCase().includes(x)) ? 1 : 0,
-            closed: ['closed', 'paid', 'deposit', 'full pay'].some(x => (get('Call Outcome')||'').toLowerCase().includes(x)) ? 1 : 0
+        // Robust Column Finding
+        const get = (search: string[]) => {
+            const key = salesSheet.headerValues.find(h => search.some(s => h.toLowerCase().includes(s.toLowerCase())));
+            return key ? row.get(key) : '';
         };
 
-        const update = (map: any, key: string) => {
-            const ex = map.get(key) || { cash: 0, revenue: 0, calls: 0, taken: 0, closed: 0 };
+        const name = cleanName(get(['Prospect Name', 'Name', 'Client']));
+        const email = cleanEmail(get(['Email', 'Contact']));
+        
+        // Data Extraction
+        const cashVal = get(['Cash Collected', 'Cash', 'Collected']);
+        const revVal = get(['Revenue', 'Total Revenue']);
+        const outcome = (get(['Call Outcome', 'Outcome', 'Status']) || '').toLowerCase();
+
+        const data = {
+            cash: parseFloat((cashVal || '0').toString().replace(/[$, ]/g, '')) || 0,
+            revenue: parseFloat((revVal || '0').toString().replace(/[$, ]/g, '')) || 0,
+            calls: 1,
+            taken: !['no show', 'cancelled', 'rescheduled'].some(x => outcome.includes(x)) ? 1 : 0,
+            closed: ['closed', 'paid', 'deposit', 'full pay'].some(x => outcome.includes(x)) ? 1 : 0
+        };
+
+        const updateMap = (map: any, key: string) => {
+            if (!key) return;
+            const existing = map.get(key) || { cash: 0, revenue: 0, calls: 0, taken: 0, closed: 0 };
             map.set(key, { 
-                cash: ex.cash + data.cash, revenue: ex.revenue + data.revenue,
-                calls: ex.calls + data.calls, taken: ex.taken + data.taken, closed: ex.closed + data.closed
+                cash: existing.cash + data.cash, 
+                revenue: existing.revenue + data.revenue,
+                calls: existing.calls + data.calls, 
+                taken: existing.taken + data.taken, 
+                closed: existing.closed + data.closed
             });
         };
-        update(salesByName, cleanName(get('Prospect Name') || get('Name')));
-        update(salesByEmail, cleanEmail(get('Email')));
+
+        updateMap(salesByName, name);
+        updateMap(salesByEmail, email);
     });
 
-    // 3. PROCESS LEADS & ATTRIBUTION
+    // 3. PROCESS LEADS & ATTRIBUTE
     const videoStats = new Map();
 
     leadsRows.forEach(row => {
-        const get = (h: string) => row.get(leadsDoc.sheetsByIndex[0].headerValues.find(header => header.toLowerCase().includes(h.toLowerCase())) || '');
-        const dateStr = get('Submitted At') || get('Date');
-        
-        // APPLY DATE FILTER
+        const get = (search: string[]) => {
+            const key = leadsSheet.headerValues.find(h => search.some(s => h.toLowerCase().includes(s.toLowerCase())));
+            return key ? row.get(key) : '';
+        };
+
+        // Date Filter
+        const dateStr = get(['Submitted', 'Date', 'Created']);
         if (!isWithinRange(dateStr)) return;
 
-        // Video ID Extraction
+        // Video Extraction
         let videoId = 'Unknown Video';
-        const content = get('utm_content') || get('content') || '';
+        const content = get(['utm_content', 'content']) || '';
         if (content.includes('youtu.be/')) videoId = content.split('youtu.be/')[1].split('?')[0];
         else if (content.includes('v=')) videoId = content.split('v=')[1].split('&')[0];
         else if (content) videoId = content;
 
+        // Init Stats for Video
         if (!videoStats.has(videoId)) videoStats.set(videoId, { id: videoId, leads: 0, qualified: 0, cash: 0, revenue: 0, calls: 0, taken: 0, closed: 0 });
-        
-        // Match Sale
-        const sale = salesByName.get(cleanName(`${get('First Name')} ${get('Last Name')}`)) || salesByEmail.get(cleanEmail(get('Email'))) || { cash: 0, revenue: 0, calls: 0, taken: 0, closed: 0 };
-        
         const curr = videoStats.get(videoId);
+
+        // Lead Counting
         curr.leads++;
-        if ((get('funds')||'').toLowerCase().match(/3k|5k|10k|100k/)) curr.qualified++;
-        curr.cash += sale.cash;
-        curr.revenue += sale.revenue;
-        curr.calls += sale.calls;
-        curr.taken += sale.taken;
-        curr.closed += sale.closed;
+        const funds = (get(['funds', 'capital', 'invest']) || '').toLowerCase();
+        if (funds.match(/3k|5k|10k|100k/)) curr.qualified++;
+
+        // **CRITICAL MATCHING LOGIC**
+        // 1. Try Email Match (Highest Confidence)
+        // 2. Try Name Match (Backup)
+        const leadEmail = cleanEmail(get(['Email']));
+        const leadName = cleanName((get(['First Name']) || '') + (get(['Last Name']) || ''));
+        
+        const matchedSale = salesByEmail.get(leadEmail) || salesByName.get(leadName);
+
+        if (matchedSale) {
+            curr.cash += matchedSale.cash;
+            curr.revenue += matchedSale.revenue;
+            curr.calls += matchedSale.calls;
+            curr.taken += matchedSale.taken;
+            curr.closed += matchedSale.closed;
+        }
     });
 
-    // 4. METADATA & RETURN
+    // 4. METADATA
     const stats = await Promise.all(Array.from(videoStats.values()).filter((v: any) => v.id !== 'Unknown Video').map(async (v: any) => {
         try {
             const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${v.id}&format=json`, { next: { revalidate: 3600 } });
@@ -113,12 +147,13 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
     }));
 
     return stats;
-  } catch (e) { return []; }
+  } catch (e) { console.error(e); return []; }
 }
 
 // --- CLIENT COMPONENTS ---
 const UtmBuilder = () => (
-    <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-8 mb-8 shadow-lg relative z-10">
+    // Lower Z-Index to ensure it stays behind the dropdown
+    <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-8 mb-8 shadow-lg relative z-0">
         <div className="flex items-center gap-2 mb-6">
             <Youtube size={18} className="text-red-500" />
             <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-400">YouTube Link Factory</h2>
@@ -193,7 +228,8 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
       <div className="max-w-[1600px] mx-auto space-y-12">
         
         {/* HEADER */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-10 relative z-[100]">
+        {/* Added Z-Index 50 here to ensure dropdown floats over content */}
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-10 relative z-50">
             <div>
                 <div className="flex items-center gap-2 mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Traffic Source</span>
@@ -203,9 +239,9 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                 <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Content <span className="text-red-500">Engine</span></h1>
             </div>
             
-            {/* 1. FILTER FIX: Z-Index increased + Empty arrays to hide closers/setters */}
-            <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg flex flex-wrap items-center gap-4 shadow-sm relative z-[100]">
+            <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg flex flex-wrap items-center gap-4 shadow-sm">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
+                {/* Passing empty arrays removes the extra dropdowns, leaving only the Date Picker */}
                 <Filters platforms={[]} closers={[]} setters={[]} />
             </div>
         </div>
@@ -213,7 +249,7 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
         <UtmBuilder />
 
         {/* ANALYTICS HEADER & SORTING */}
-        <div className="space-y-6 relative z-10">
+        <div className="space-y-6 relative z-0">
             <div className="flex flex-col items-center gap-4">
                 <h2 className="text-3xl font-black text-zinc-200 tracking-tight uppercase">Content Performance</h2>
                 <p className="text-zinc-500 text-sm">Track performance metrics for your YouTube content</p>
@@ -231,7 +267,6 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
 
             {/* UNIFIED SUMMARY GRID */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-3">
-                {/* Standard Funnel */}
                 <SummaryCard label="Applications" value={totals.qualified.toLocaleString()} />
                 <SummaryCard label="Opt-ins" value={totals.leads.toLocaleString()} />
                 <SummaryCard label="AOV" value={`$${aggAov.toLocaleString(undefined, {maximumFractionDigits:0})}`} />
@@ -247,7 +282,6 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
                 <SummaryCard label="Total Cash" value={`$${(totals.cash/1000).toFixed(1)}k`} highlight="green" icon={<DollarSign size={14}/>} />
             </div>
 
-            {/* PAGINATION */}
             <div className="bg-[#121214] border border-zinc-800 rounded-lg py-3 px-6 text-center text-xs font-bold text-zinc-500 uppercase tracking-wider">
                 Page 1 of 1 | Showing {sortedStats.length} videos (Total: {sortedStats.length})
             </div>

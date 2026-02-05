@@ -104,7 +104,7 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                     calls: 0,
                     taken: 0, 
                     closed: 0,
-                    isNew: true // Flag to highlight it
+                    // REMOVED 'isNew' flag so it looks identical to others
                 };
                 
                 // Add to the FRONT of the local list
@@ -228,14 +228,13 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                         return (
                             <div 
                                 key={video.id} 
-                                className={`group bg-[#09090b] border hover:border-zinc-700 rounded-2xl overflow-hidden transition-all shadow-sm flex flex-col ${video.isNew ? 'border-blue-500/50 shadow-blue-500/20' : 'border-zinc-800'}`}
+                                className="group bg-[#09090b] border border-zinc-800 hover:border-zinc-700 rounded-2xl overflow-hidden transition-all shadow-sm flex flex-col"
                             >
                                 <div className="relative aspect-video w-full bg-zinc-900">
                                     {video.thumbnail && <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />}
                                     <div className="absolute inset-0 bg-gradient-to-t from-[#09090b] to-transparent opacity-90" />
                                     <div className="absolute bottom-4 left-4 right-4">
                                         <h3 className="text-sm font-bold text-white leading-snug line-clamp-2">{video.title}</h3>
-                                        {video.isNew && <span className="inline-block mt-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">NEW TRACKING</span>}
                                     </div>
                                 </div>
 

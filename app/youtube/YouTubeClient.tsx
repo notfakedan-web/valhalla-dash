@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Youtube, TrendingUp, DollarSign, Users, Phone, CheckCircle2, Filter, Banknote, Activity, Calendar, Copy, Check, Link as LinkIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Youtube, TrendingUp, DollarSign, Users, Phone, CheckCircle2, Filter, Banknote, Activity, Calendar, Copy, Check, Link as LinkIcon, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Filters from '../Filters'; 
 
@@ -47,28 +47,70 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
     const [manualVideoUrl, setManualVideoUrl] = useState('');
     const [copiedId, setCopiedId] = useState<string | null>(null);
     const [manualCopied, setManualCopied] = useState(false);
+    
+    // NEW: Local state to hold "Just Created" videos so they appear instantly
+    const [optimisticVideos, setOptimisticVideos] = useState<any[]>([]);
 
     // Helper: Extract ID from YouTube URL
     const extractVideoId = (url: string) => {
         if (!url) return '';
         if (url.includes('youtu.be/')) return url.split('youtu.be/')[1].split('?')[0];
         if (url.includes('v=')) return url.split('v=')[1].split('&')[0];
-        return url; // fallback
+        return url; // fallback, assumes ID
     };
 
     // 1. Handle "Generate Tracking Link" (Big Button)
-    const handleManualGenerate = () => {
+    const handleManualGenerate = async () => {
         const targetUrl = baseUrl || "https://your-landing-page.com";
         const separator = targetUrl.includes('?') ? '&' : '?';
         const vidId = extractVideoId(manualVideoUrl);
         
-        // If they provided a video URL, use that ID. Otherwise just base.
+        // A. Copy Logic
         const utmContent = vidId ? `&utm_content=${vidId}` : '';
         const link = `${targetUrl}${separator}utm_source=youtube&utm_medium=organic${utmContent}`;
         
         navigator.clipboard.writeText(link);
         setManualCopied(true);
         setTimeout(() => setManualCopied(false), 2000);
+
+        // B. "Create Video" Logic (Optimistic Update)
+        if (vidId) {
+            // Check if it's already in the main list or our local list
+            const existsInStats = stats.some((v: any) => v.id === vidId);
+            const existsInLocal = optimisticVideos.some((v: any) => v.id === vidId);
+
+            if (!existsInStats && !existsInLocal) {
+                // Fetch basic metadata client-side if possible, or use defaults
+                let newTitle = "New Tracked Video";
+                try {
+                    // Try to fetch title via oEmbed
+                    const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vidId}&format=json`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        newTitle = data.title;
+                    }
+                } catch (e) {
+                    console.log("Could not fetch title, using default");
+                }
+
+                const newVideo = {
+                    id: vidId,
+                    title: newTitle,
+                    thumbnail: `https://i.ytimg.com/vi/${vidId}/mqdefault.jpg`,
+                    leads: 0, 
+                    qualified: 0, 
+                    cash: 0, 
+                    revenue: 0, 
+                    calls: 0,
+                    taken: 0, 
+                    closed: 0,
+                    isNew: true // Flag to highlight it
+                };
+                
+                // Add to the FRONT of the local list
+                setOptimisticVideos(prev => [newVideo, ...prev]);
+            }
+        }
     };
 
     // 2. Handle "Copy Link" (Video Cards)
@@ -81,6 +123,9 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
         setCopiedId(videoId);
         setTimeout(() => setCopiedId(null), 2000);
     };
+
+    // Combine Server Stats + Local Optimistic Stats
+    const displayVideos = [...optimisticVideos, ...stats];
 
     return (
         <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans p-6 md:p-10">
@@ -126,13 +171,12 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                         />
                     </div>
                     
-                    {/* --- THE RESTORED BUTTON --- */}
                     <button 
                         onClick={handleManualGenerate}
                         className="w-full bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-widest text-xs py-4 rounded-xl transition-colors flex items-center justify-center gap-2"
                     >
                         {manualCopied ? <Check size={16} /> : null}
-                        {manualCopied ? "Link Copied to Clipboard!" : "Generate Tracking Link"}
+                        {manualCopied ? "Link Copied & Video Added!" : "Generate Tracking Link"}
                     </button>
                 </div>
 
@@ -164,30 +208,34 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                         <SummaryCard label="Avg. Cash/App" value={`$${(totals.qualified > 0 ? totals.cash / totals.qualified : 0).toFixed(0)}`} />
                         <SummaryCard label="Avg. Cash/Opt-in" value={`$${(totals.leads > 0 ? totals.cash / totals.leads : 0).toFixed(0)}`} />
 
-                        <SummaryCard label="Total Videos" value={stats.length.toString()} highlight="blue" icon={<Youtube size={14}/>} />
+                        <SummaryCard label="Total Videos" value={displayVideos.length.toString()} highlight="blue" icon={<Youtube size={14}/>} />
                         <SummaryCard label="Total Calls" value={totals.calls.toLocaleString()} highlight="purple" icon={<Phone size={14}/>} />
                         <SummaryCard label="Total Cash" value={`$${(totals.cash/1000).toFixed(1)}k`} highlight="green" icon={<DollarSign size={14}/>} />
                     </div>
 
                     <div className="bg-[#121214] border border-zinc-800 rounded-lg py-3 px-6 text-center text-xs font-bold text-zinc-500 uppercase tracking-wider">
-                        Page 1 of 1 | Showing {stats.length} videos (Total: {stats.length})
+                        Page 1 of 1 | Showing {displayVideos.length} videos (Total: {displayVideos.length})
                     </div>
                 </div>
 
                 {/* VIDEO GRID */}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 relative z-0">
-                    {stats.map((video: any) => {
+                    {displayVideos.map((video: any) => {
                         const closeRate = video.taken > 0 ? (video.closed / video.taken) * 100 : 0;
                         const showRate = video.calls > 0 ? (video.taken / video.calls) * 100 : 0;
                         const aov = video.closed > 0 ? video.cash / video.closed : 0;
 
                         return (
-                            <div key={video.id} className="group bg-[#09090b] border border-zinc-800 hover:border-zinc-700 rounded-2xl overflow-hidden transition-all shadow-sm flex flex-col">
+                            <div 
+                                key={video.id} 
+                                className={`group bg-[#09090b] border hover:border-zinc-700 rounded-2xl overflow-hidden transition-all shadow-sm flex flex-col ${video.isNew ? 'border-blue-500/50 shadow-blue-500/20' : 'border-zinc-800'}`}
+                            >
                                 <div className="relative aspect-video w-full bg-zinc-900">
                                     {video.thumbnail && <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />}
                                     <div className="absolute inset-0 bg-gradient-to-t from-[#09090b] to-transparent opacity-90" />
                                     <div className="absolute bottom-4 left-4 right-4">
                                         <h3 className="text-sm font-bold text-white leading-snug line-clamp-2">{video.title}</h3>
+                                        {video.isNew && <span className="inline-block mt-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">NEW TRACKING</span>}
                                     </div>
                                 </div>
 

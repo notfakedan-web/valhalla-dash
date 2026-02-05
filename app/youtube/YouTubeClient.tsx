@@ -44,10 +44,35 @@ const SortButton = ({ label, icon, active, href }: any) => (
 export default function YouTubeClient({ stats, totals, params, sort }: any) {
     // State for the "Link Factory" inputs
     const [baseUrl, setBaseUrl] = useState('');
+    const [manualVideoUrl, setManualVideoUrl] = useState('');
     const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [manualCopied, setManualCopied] = useState(false);
 
-    // Copy Functionality
-    const handleCopy = (videoId: string) => {
+    // Helper: Extract ID from YouTube URL
+    const extractVideoId = (url: string) => {
+        if (!url) return '';
+        if (url.includes('youtu.be/')) return url.split('youtu.be/')[1].split('?')[0];
+        if (url.includes('v=')) return url.split('v=')[1].split('&')[0];
+        return url; // fallback
+    };
+
+    // 1. Handle "Generate Tracking Link" (Big Button)
+    const handleManualGenerate = () => {
+        const targetUrl = baseUrl || "https://your-landing-page.com";
+        const separator = targetUrl.includes('?') ? '&' : '?';
+        const vidId = extractVideoId(manualVideoUrl);
+        
+        // If they provided a video URL, use that ID. Otherwise just base.
+        const utmContent = vidId ? `&utm_content=${vidId}` : '';
+        const link = `${targetUrl}${separator}utm_source=youtube&utm_medium=organic${utmContent}`;
+        
+        navigator.clipboard.writeText(link);
+        setManualCopied(true);
+        setTimeout(() => setManualCopied(false), 2000);
+    };
+
+    // 2. Handle "Copy Link" (Video Cards)
+    const handleCardCopy = (videoId: string) => {
         const targetUrl = baseUrl || "https://your-landing-page.com";
         const separator = targetUrl.includes('?') ? '&' : '?';
         const link = `${targetUrl}${separator}utm_source=youtube&utm_medium=organic&utm_content=${videoId}`;
@@ -78,13 +103,13 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                     </div>
                 </div>
 
-                {/* LINK FACTORY (With State) */}
+                {/* LINK FACTORY */}
                 <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-8 mb-8 shadow-lg relative z-0">
                     <div className="flex items-center gap-2 mb-6">
                         <Youtube size={18} className="text-red-500" />
                         <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-400">YouTube Link Factory</h2>
                     </div>
-                    <div className="grid md:grid-cols-2 gap-6">
+                    <div className="grid md:grid-cols-2 gap-6 mb-6">
                         <input 
                             type="text" 
                             placeholder="Landing Page URL (e.g. https://start.com)" 
@@ -95,9 +120,20 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                         <input 
                             type="text" 
                             placeholder="YouTube Video URL (Optional)" 
+                            value={manualVideoUrl}
+                            onChange={(e) => setManualVideoUrl(e.target.value)}
                             className="bg-[#0a0a0a] border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white focus:border-red-500/50 outline-none" 
                         />
                     </div>
+                    
+                    {/* --- THE RESTORED BUTTON --- */}
+                    <button 
+                        onClick={handleManualGenerate}
+                        className="w-full bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-widest text-xs py-4 rounded-xl transition-colors flex items-center justify-center gap-2"
+                    >
+                        {manualCopied ? <Check size={16} /> : null}
+                        {manualCopied ? "Link Copied to Clipboard!" : "Generate Tracking Link"}
+                    </button>
                 </div>
 
                 {/* ANALYTICS HEADER & SORTING */}
@@ -166,10 +202,10 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                                     <MetricRow label="AOV" value={`$${aov.toLocaleString(undefined, {maximumFractionDigits:0})}`} color="text-purple-400" icon={<DollarSign size={10} />} />
                                 </div>
 
-                                {/* COPY BUTTON ADDED HERE */}
+                                {/* VIDEO CARD COPY BUTTON */}
                                 <div className="mt-auto p-4 border-t border-zinc-800 bg-[#0c0c0e]">
                                     <button
-                                        onClick={() => handleCopy(video.id)}
+                                        onClick={() => handleCardCopy(video.id)}
                                         className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 border ${
                                             copiedId === video.id 
                                             ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 

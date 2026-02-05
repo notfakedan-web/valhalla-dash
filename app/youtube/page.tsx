@@ -5,7 +5,7 @@ export const revalidate = 0;
 import React from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
-import YouTubeClient from './YouTubeClient'; // Import the new component
+import YouTubeClient from './YouTubeClient';
 
 // --- ROBUST HELPERS ---
 const cleanName = (name: string) => name ? name.toLowerCase().replace(/[^a-z]/g, '') : '';
@@ -20,7 +20,6 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    // Date Logic
     const startDate = startStr ? new Date(startStr) : null;
     const endDate = endStr ? new Date(endStr) : null;
     if (endDate) endDate.setHours(23, 59, 59, 999);
@@ -138,13 +137,11 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
   } catch (e) { console.error(e); return []; }
 }
 
-// --- MAIN SERVER PAGE ---
 export default async function YouTubePage({ searchParams }: { searchParams: Promise<any> }) {
   const params = await searchParams;
   const stats = await getYouTubeAttribution(params.start, params.end);
   const sort = params.sort || 'aov';
 
-  // Sorting
   const sortedStats = [...stats].sort((a, b) => {
       if (sort === 'cash_call') return (b.cash/b.calls||0) - (a.cash/a.calls||0);
       if (sort === 'cash_app') return (b.cash/b.qualified||0) - (a.cash/a.qualified||0);
@@ -152,7 +149,6 @@ export default async function YouTubePage({ searchParams }: { searchParams: Prom
       return (b.cash/b.closed||0) - (a.cash/a.closed||0); 
   });
 
-  // Aggregates
   const totals = stats.reduce((acc: any, v: any) => ({
       leads: acc.leads + v.leads,
       qualified: acc.qualified + v.qualified,

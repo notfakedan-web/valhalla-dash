@@ -1,6 +1,6 @@
 import './globals.css'
 import Link from 'next/link';
-import Image from 'next/image'; // Added this import
+import Image from 'next/image'; 
 import { LayoutDashboard, Users, Youtube } from 'lucide-react';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -8,26 +8,28 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="bg-[#050505] text-zinc-100 flex min-h-screen font-sans selection:bg-cyan-500/30">
         
-        {/* SIDEBAR: Valhalla OS Theme */}
+        {/* SIDEBAR */}
         <aside className="w-64 border-r border-zinc-900/50 flex-col justify-between hidden lg:flex shrink-0 bg-[#050505] fixed h-full z-50">
           
           {/* TOP SECTION */}
           <div className="p-6">
             
-            {/* --- NEW LOGO BRANDING --- */}
-            <div className="flex flex-col items-center gap-4 mb-10 mt-4">
-              {/* Logo Container */}
-              <div className="relative w-24 h-24 opacity-90 hover:opacity-100 transition-opacity">
+            {/* --- LOGO SECTION --- */}
+            <div className="flex flex-col items-center gap-4 mb-10 mt-6">
+              {/* Image Container */}
+              <div className="relative w-20 h-20">
                 <Image 
                   src="/valhalla-logo.png" 
-                  alt="Valhalla OS" 
-                  fill 
-                  className="object-contain"
+                  alt="Valhalla OS Logo" 
+                  width={80} // Explicit width helps prevent loading errors
+                  height={80} // Explicit height
+                  className="object-contain opacity-90 hover:opacity-100 transition-opacity"
                   priority 
+                  unoptimized // Add this if local images still fail to load
                 />
               </div>
               
-              {/* Text Branding */}
+              {/* Brand Text */}
               <h1 className="text-sm font-bold tracking-[0.25em] text-white uppercase text-center">
                 VALHALLA OS
               </h1>
@@ -54,7 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </nav>
           </div>
 
-          {/* BOTTOM SECTION (Status) */}
+          {/* BOTTOM SECTION */}
           <div className="p-8 border-t border-zinc-900/50">
              <div className="bg-zinc-900/30 rounded-xl p-4 border border-zinc-800/50">
                 <div className="flex items-center gap-3 mb-2">
@@ -67,7 +69,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         </aside>
 
-        {/* MAIN CONTENT WRAPPER */}
+        {/* MAIN CONTENT */}
         <main className="flex-1 lg:ml-64 relative">
           {children}
         </main>

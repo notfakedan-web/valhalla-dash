@@ -1,144 +1,160 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
-export default function CalendarPicker() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const containerRef = useRef<HTMLDivElement>(null);
-
+export default function CalendarPicker({ date, setDate }: { date: any, setDate: any }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [viewDate, setViewDate] = useState(new Date());
-  const [start, setStart] = useState<Date | null>(null);
-  const [end, setEnd] = useState<Date | null>(null);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  const toDateString = (date: Date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
+  // Helper to format dates
+  const formatDate = (d: Date | undefined) => d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Select';
 
-  const fromDateString = (str: string) => {
-    const [y, m, d] = str.split('-').map(Number);
-    return new Date(y, m - 1, d);
-  };
-
-  useEffect(() => {
-    const s = searchParams.get('start');
-    const e = searchParams.get('end');
-    if (s) setStart(fromDateString(s));
-    if (e) setEnd(fromDateString(e));
-  }, [searchParams]);
-
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setIsOpen(false);
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
-
-  const daysInMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  const firstDayOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  // Generate days
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay(); // 0 = Sunday
+  
+  const blanks = Array(firstDay).fill(null);
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
   const handleDateClick = (day: number) => {
-    const clickedDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+    const newDate = new Date(year, month, day);
     
-    if (!start || (start && end)) {
-      setStart(clickedDate);
-      setEnd(null);
+    // Range Logic
+    if (!date?.from || (date.from && date.to)) {
+      setDate({ from: newDate, to: undefined });
     } else {
-      let finalStart = start;
-      let finalEnd = clickedDate;
-
-      if (clickedDate < start) {
-        finalStart = clickedDate;
-        finalEnd = start;
+      if (newDate < date.from) {
+        setDate({ from: newDate, to: date.from });
+      } else {
+        setDate({ from: date.from, to: newDate });
       }
-
-      const params = new URLSearchParams(searchParams.toString());
-      params.set('start', toDateString(finalStart));
-      params.set('end', toDateString(finalEnd));
-      router.push(`?${params.toString()}`);
-      setIsOpen(false);
     }
   };
 
-  const isInRange = (day: number) => {
-    const d = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
-    if (start && !end) return d.getTime() === start.getTime();
-    if (start && end) return d >= start && d <= end;
+  const isSelected = (day: number) => {
+    const target = new Date(year, month, day);
+    if (date?.from && target.getTime() === date.from.getTime()) return true;
+    if (date?.to && target.getTime() === date.to.getTime()) return true;
     return false;
   };
 
+  const isInRange = (day: number) => {
+    if (!date?.from || !date?.to) return false;
+    const target = new Date(year, month, day);
+    return target > date.from && target < date.to;
+  };
+
+  const handleQuickSelect = (daysAgo: number) => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - daysAgo);
+    setDate({ from, to });
+    setIsOpen(false); // Close immediately on quick select
+  };
+
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
   return (
-    <div className="relative inline-block" ref={containerRef} style={{ zIndex: 100 }}>
+    <div className="relative">
+      {/* TRIGGER BUTTON */}
       <button 
-        onClick={() => setIsOpen(!isOpen)} 
-        className="flex items-center gap-3 bg-zinc-900/50 backdrop-blur-md border border-zinc-800 px-4 py-3 rounded-xl hover:border-cyan-500/50 transition-all text-xs font-bold uppercase tracking-widest text-zinc-400 min-w-[240px]"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-lg text-xs font-medium text-zinc-300 transition-all"
       >
-        <CalendarIcon size={14} className={start ? "text-cyan-400" : "text-zinc-600"} />
-        {start ? (
-            <span className="text-zinc-200">
-                {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                {end ? ` - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ' ...'}
-            </span>
-        ) : "Select Date Range"}
+        <CalendarIcon size={14} className="text-zinc-500" />
+        <span>{formatDate(date?.from)} - {formatDate(date?.to)}</span>
       </button>
 
+      {/* OVERLAY & POPUP */}
       {isOpen && (
-        <div className="absolute top-full mt-3 left-0 bg-[#0d0d0d] border border-zinc-800 p-6 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] min-w-[320px] z-[110]">
-          <div className="flex justify-between items-center mb-6">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-400">
-                {viewDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-            </h4>
-            <div className="flex gap-1">
-              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() - 1)))} className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-500 hover:text-white">
-                <ChevronLeft size={16}/>
-              </button>
-              <button onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() + 1)))} className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-500 hover:text-white">
-                <ChevronRight size={16}/>
-              </button>
+        <>
+          {/* MOBILE BACKDROP & POSITIONING CONTAINER 
+              - 'flex items-center justify-center' centers the modal safely.
+              - 'z-[999]' ensures it's on top of everything.
+          */}
+          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 lg:p-0 lg:block lg:static">
+            
+            {/* BACKDROP CLICK TARGET */}
+            <div 
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm lg:hidden"
+              onClick={() => setIsOpen(false)}
+            />
+
+            {/* MODAL ITSELF */}
+            <div className={`
+              relative z-[1000] w-full max-w-[340px] bg-[#09090b] border border-zinc-800 rounded-2xl shadow-2xl p-5
+              max-h-[85vh] overflow-y-auto custom-scrollbar
+              lg:absolute lg:top-full lg:right-0 lg:left-auto lg:mt-2 lg:w-[320px] lg:max-h-none lg:overflow-visible
+            `}>
+              
+              {/* QUICK SELECT LIST (Optional, assuming you want it) */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                 <button onClick={() => handleQuickSelect(0)} className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded text-[10px] text-zinc-400 font-medium">Today</button>
+                 <button onClick={() => handleQuickSelect(1)} className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded text-[10px] text-zinc-400 font-medium">Yesterday</button>
+                 <button onClick={() => handleQuickSelect(7)} className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded text-[10px] text-zinc-400 font-medium">Last 7 Days</button>
+                 <button onClick={() => handleQuickSelect(30)} className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded text-[10px] text-zinc-400 font-medium">Last 30 Days</button>
+              </div>
+
+              {/* HEADER */}
+              <div className="flex items-center justify-between mb-4 pt-2 border-t border-zinc-900">
+                <span className="text-sm font-bold text-white">{monthNames[month]} {year}</span>
+                <div className="flex gap-1">
+                  <button onClick={() => setCurrentMonth(new Date(year, month - 1))} className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white"><ChevronLeft size={16} /></button>
+                  <button onClick={() => setCurrentMonth(new Date(year, month + 1))} className="p-1 hover:bg-zinc-800 rounded text-zinc-400 hover:text-white"><ChevronRight size={16} /></button>
+                </div>
+              </div>
+
+              {/* DAYS GRID */}
+              <div className="grid grid-cols-7 gap-1 mb-4 text-center">
+                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
+                  <div key={d} className="text-[10px] font-bold text-zinc-600 uppercase">{d}</div>
+                ))}
+                
+                {blanks.map((_, i) => <div key={`blank-${i}`} />)}
+                
+                {days.map(day => {
+                  const selected = isSelected(day);
+                  const inRange = isInRange(day);
+                  
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => handleDateClick(day)}
+                      className={`
+                        h-8 w-8 text-xs rounded-full flex items-center justify-center transition-all
+                        ${selected ? 'bg-cyan-600 text-white font-bold shadow-lg shadow-cyan-900/50' : ''}
+                        ${inRange ? 'bg-cyan-900/20 text-cyan-200 rounded-none' : ''}
+                        ${!selected && !inRange ? 'text-zinc-400 hover:bg-zinc-800 hover:text-white' : ''}
+                      `}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* FOOTER ACTIONS */}
+              <div className="flex items-center justify-between pt-4 border-t border-zinc-800 sticky bottom-0 bg-[#09090b]">
+                 <button 
+                    onClick={() => setIsOpen(false)}
+                    className="text-xs font-medium text-zinc-500 hover:text-zinc-300"
+                 >
+                   Cancel
+                 </button>
+                 <button 
+                    onClick={() => setIsOpen(false)} 
+                    className="px-4 py-2 bg-white text-black text-xs font-bold rounded-lg hover:bg-zinc-200 transition-colors"
+                 >
+                   Apply Dates
+                 </button>
+              </div>
+
             </div>
           </div>
-
-          <div className="grid grid-cols-7 gap-1 text-center mb-4">
-            {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-                <div key={d} className="text-[9px] font-black text-zinc-700 uppercase">{d}</div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-1">
-            {Array.from({ length: firstDayOfMonth(viewDate) }).map((_, i) => <div key={i} />)}
-            
-            {Array.from({ length: daysInMonth(viewDate) }).map((_, i) => {
-              const day = i + 1;
-              const active = isInRange(day);
-              const isBoundary = (start && new Date(viewDate.getFullYear(), viewDate.getMonth(), day).getTime() === start.getTime()) || (end && new Date(viewDate.getFullYear(), viewDate.getMonth(), day).getTime() === end.getTime());
-              
-              return (
-                <button 
-                  key={day} 
-                  onClick={() => handleDateClick(day)} 
-                  className={`
-                    aspect-square flex items-center justify-center text-[11px] font-black rounded-lg transition-all
-                    ${active ? 'bg-cyan-500 text-black shadow-[0_0_15px_rgba(34,211,238,0.4)]' : 'text-zinc-500 hover:bg-zinc-800 hover:text-white'}
-                    ${active && !isBoundary ? 'bg-cyan-500/20 text-cyan-400 shadow-none' : ''}
-                  `}
-                >
-                    {day}
-                </button>
-              );
-            })}
-          </div>
-          
-          <div className="mt-6 pt-4 border-t border-zinc-800 flex justify-end">
-             <button onClick={() => setIsOpen(false)} className="text-[9px] font-black uppercase tracking-widest text-zinc-600 hover:text-white transition-colors">Close</button>
-          </div>
-        </div>
+        </>
       )}
     </div>
   );

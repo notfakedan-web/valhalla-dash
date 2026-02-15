@@ -69,29 +69,25 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
         <span>{formatDate(date?.from)} - {formatDate(date?.to)}</span>
       </button>
 
-      {/* THE MODAL
-         Using !fixed, !inset-0, and !z-[99999] to override EVERYTHING.
-         This forces it to be a direct screen overlay, ignoring all parent divs.
-      */}
+      {/* THE MODAL - Centered on screen */}
       {isOpen && (
-        <div className="!fixed !inset-0 !z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           
-          {/* CLICK OUTSIDE TO CLOSE */}
+          {/* Background click area to close */}
           <div className="absolute inset-0" onClick={() => setIsOpen(false)} />
-
-          {/* CONTENT BOX */}
-          <div className="relative bg-[#09090b] border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
+          
+          <div className="relative bg-[#09090b] border border-zinc-800 w-full max-w-sm rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
             
             {/* HEADER */}
-            <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-[#09090b]">
-              <span className="text-sm font-bold text-white uppercase tracking-wider">Select Dates</span>
-              <button onClick={() => setIsOpen(false)} className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 transition-colors">
-                <X size={18} />
-              </button>
+            <div className="flex justify-between items-center p-4 border-b border-zinc-800 bg-[#09090b]">
+                <span className="text-xs font-bold text-white uppercase tracking-widest">Select Dates</span>
+                <button onClick={() => setIsOpen(false)} className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 transition-colors">
+                  <X size={18} />
+                </button>
             </div>
 
             {/* SCROLLABLE BODY */}
-            <div className="overflow-y-auto p-4 custom-scrollbar flex-1 bg-[#09090b]">
+            <div className="overflow-y-auto p-5 custom-scrollbar flex-1 bg-[#09090b]">
               
               {/* QUICK SELECT */}
               <div className="grid grid-cols-3 gap-2 mb-6">
@@ -106,7 +102,7 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
                 ))}
               </div>
 
-              {/* CALENDAR */}
+              {/* CALENDAR GRID */}
               <div className="bg-zinc-900/50 rounded-xl p-3 border border-zinc-800/50">
                 <div className="flex justify-between items-center mb-4">
                    <button onClick={() => setCurrentMonth(new Date(year, month - 1))} className="p-1 hover:bg-zinc-800 rounded text-zinc-400"><ChevronLeft size={16}/></button>
@@ -139,12 +135,12 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
 
             {/* FOOTER */}
             <div className="p-4 border-t border-zinc-800 bg-[#09090b]">
-              <button 
-                onClick={() => setIsOpen(false)} 
-                className="w-full py-3 bg-white text-black font-bold uppercase tracking-widest rounded-lg text-xs hover:bg-zinc-200 transition-colors"
-              >
-                Apply Selection
-              </button>
+                <button 
+                  onClick={() => setIsOpen(false)} 
+                  className="w-full py-3 bg-white text-black font-bold uppercase tracking-widest rounded-lg text-xs hover:bg-zinc-200 transition-colors"
+                >
+                  Apply Selection
+                </button>
             </div>
 
           </div>

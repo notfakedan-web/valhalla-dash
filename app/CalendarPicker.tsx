@@ -1,22 +1,33 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
-export default function CalendarPicker({ date, setDate }: { date: any, setDate: any }) {
+type DateRange = { from?: Date; to?: Date };
+
+export default function CalendarPicker({
+  date,
+  setDate,
+}: {
+  date: DateRange | any;
+  setDate: (v: DateRange) => void;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [mounted, setMounted] = useState(false);
 
+  // Ensure portal only renders client-side
   useEffect(() => setMounted(true), []);
 
   // Prevent background scrolling when modal is open
   useEffect(() => {
-    if (isOpen) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = 'unset';
-    return () => { document.body.style.overflow = 'unset'; };
-  }, [isOpen]);
+    if (!mounted) return;
+    document.body.style.overflow = isOpen ? 'hidden' : 'unset';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen, mounted]);
 
   const formatDate = (d: Date | undefined) =>
     d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Select';
@@ -31,26 +42,30 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
 
   const handleDateClick = (day: number) => {
     const newDate = new Date(year, month, day);
+
     if (!date?.from || (date.from && date.to)) {
       setDate({ from: newDate, to: undefined });
-    } else {
-      if (newDate < date.from) setDate({ from: newDate, to: date.from });
-      else setDate({ from: date.from, to: newDate });
+      return;
     }
+
+    if (newDate < date.from) setDate({ from: newDate, to: date.from });
+    else setDate({ from: date.from, to: newDate });
   };
 
   const isSelected = (day: number) => {
     const target = new Date(year, month, day);
     return (
-      (date?.from && target.getTime() === date.from.getTime()) ||
-      (date?.to && target.getTime() === date.to.getTime())
+      (date?.from && target.getTime() === new Date(date.from).getTime()) ||
+      (date?.to && target.getTime() === new Date(date.to).getTime())
     );
   };
 
   const isInRange = (day: number) => {
     if (!date?.from || !date?.to) return false;
     const target = new Date(year, month, day);
-    return target > date.from && target < date.to;
+    const from = new Date(date.from);
+    const to = new Date(date.to);
+    return target > from && target < to;
   };
 
   const handleQuickSelect = (daysAgo: number) => {
@@ -62,13 +77,23 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
   };
 
   const monthNames = [
-    "January","February","March","April","May","June",
-    "July","August","September","October","November","December"
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
   ];
 
   const modal = (
     <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm">
-      {/* click outside */}
+      {/* Invisible click layer to close when tapping outside */}
       <button
         type="button"
         aria-label="Close calendar"
@@ -76,16 +101,16 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
         onClick={() => setIsOpen(false)}
       />
 
-      {/* hard-centered content (mobile-safe) */}
+      {/* TRUE centered modal box (independent of trigger position) */}
       <div
         className="
           fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
           z-[10000]
-          w-[calc(100vw-2rem)] max-w-sm
+          w-[min(24rem,calc(100vw-2rem))]
           max-h-[90vh]
         "
       >
-        <div className="relative bg-[#09090b] border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="relative bg-[#09090b] border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
           {/* MODAL HEADER */}
           <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-[#0c0c0e]">
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
@@ -94,6 +119,7 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
             <button
               onClick={() => setIsOpen(false)}
               className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400"
+              aria-label="Close"
             >
               <X size={16} />
             </button>
@@ -109,8 +135,8 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
                 { l: '7 Days', d: 7 },
                 { l: '30 Days', d: 30 },
                 { l: '90 Days', d: 90 },
-                { l: 'Year', d: 365 }
-              ].map(item => (
+                { l: 'Year', d: 365 },
+              ].map((item) => (
                 <button
                   key={item.l}
                   onClick={() => handleQuickSelect(item.d)}
@@ -125,33 +151,43 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
             <div className="bg-zinc-900/40 rounded-2xl p-4 border border-zinc-800/50">
               <div className="flex justify-between items-center mb-6 px-1">
                 <button
-                  onClick={() => setCurrentMonth(new Date(year, month - 1))}
+                  onClick={() => setCurrentMonth(new Date(year, month - 1, 1))}
                   className="p-1 text-zinc-500 hover:text-white"
+                  aria-label="Previous month"
                 >
                   <ChevronLeft size={18} />
                 </button>
+
                 <span className="text-sm font-bold text-white">
                   {monthNames[month]} {year}
                 </span>
+
                 <button
-                  onClick={() => setCurrentMonth(new Date(year, month + 1))}
+                  onClick={() => setCurrentMonth(new Date(year, month + 1, 1))}
                   className="p-1 text-zinc-500 hover:text-white"
+                  aria-label="Next month"
                 >
                   <ChevronRight size={18} />
                 </button>
               </div>
 
               <div className="grid grid-cols-7 gap-1 text-center mb-2">
-                {['S','M','T','W','T','F','S'].map(d => (
-                  <span key={d} className="text-[10px] font-black text-zinc-600">{d}</span>
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => (
+                  <span key={d} className="text-[10px] font-black text-zinc-600">
+                    {d}
+                  </span>
                 ))}
               </div>
 
               <div className="grid grid-cols-7 gap-1">
-                {blanks.map((_, i) => <div key={`b-${i}`} />)}
-                {days.map(d => {
+                {blanks.map((_, i) => (
+                  <div key={`b-${i}`} />
+                ))}
+
+                {days.map((d) => {
                   const selected = isSelected(d);
                   const inRange = isInRange(d);
+
                   return (
                     <button
                       key={d}
@@ -172,7 +208,7 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
             </div>
           </div>
 
-          {/* APPLY BUTTON */}
+          {/* APPLY BUTTON (STICKY) */}
           <div className="p-5 border-t border-zinc-800 bg-[#0c0c0e]">
             <button
               onClick={() => setIsOpen(false)}
@@ -199,7 +235,7 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
         </span>
       </button>
 
-      {/* MODAL (ported to body to avoid parent transform/overflow issues) */}
+      {/* MODAL PORTAL */}
       {isOpen && mounted ? createPortal(modal, document.body) : null}
     </>
   );

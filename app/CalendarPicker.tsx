@@ -71,13 +71,13 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
 
       {/* THE MODAL: Uses !fixed and !inset-0 to ignore the bar's position */}
       {isOpen && (
-        <div className="!fixed !inset-0 !z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div className="!fixed !inset-0 !z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
           
           {/* Invisible click layer to close when tapping outside */}
           <div className="absolute inset-0" onClick={() => setIsOpen(false)} />
 
           {/* THE CONTENT BOX: Centered relative to the screen, not the button */}
-          <div className="relative bg-[#09090b] border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="relative bg-[#09090b] border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
             
             {/* MODAL HEADER */}
             <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-[#0c0c0e]">
@@ -111,19 +111,19 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
               </div>
 
               {/* CALENDAR SECTION */}
-              <div className="bg-zinc-900/40 rounded-2xl p-4 border border-zinc-800/50">
+              <div className="bg-zinc-900/40 rounded-2xl p-4 border border-zinc-800/50 w-full">
                 <div className="flex justify-between items-center mb-6 px-1">
                    <button onClick={() => setCurrentMonth(new Date(year, month - 1))} className="p-1 text-zinc-500 hover:text-white"><ChevronLeft size={18}/></button>
                    <span className="text-sm font-bold text-white">{monthNames[month]} {year}</span>
                    <button onClick={() => setCurrentMonth(new Date(year, month + 1))} className="p-1 text-zinc-500 hover:text-white"><ChevronRight size={18}/></button>
                 </div>
                 
-                <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                <div className="grid grid-cols-7 gap-1.5 text-center mb-2 w-full">
                   {['S','M','T','W','T','F','S'].map(d => <span key={d} className="text-[10px] font-black text-zinc-600">{d}</span>)}
                 </div>
                 
-                <div className="grid grid-cols-7 gap-1">
-                  {blanks.map((_, i) => <div key={`b-${i}`} />)}
+                <div className="grid grid-cols-7 gap-1.5 w-full">
+                  {blanks.map((_, i) => <div key={`b-${i}`} className="aspect-square" />)}
                   {days.map(d => {
                     const selected = isSelected(d);
                     const inRange = isInRange(d);
@@ -131,7 +131,7 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
                       <button 
                         key={d} 
                         onClick={() => handleDateClick(d)} 
-                        className={`h-9 w-full text-xs rounded-lg flex items-center justify-center transition-all ${selected ? 'bg-white text-black font-black shadow-lg shadow-white/10' : inRange ? 'bg-zinc-800 text-zinc-300 rounded-none' : 'text-zinc-500 hover:text-white'}`}
+                        className={`aspect-square w-full text-xs rounded-lg flex items-center justify-center transition-all ${selected ? 'bg-white text-black font-black shadow-lg shadow-white/10' : inRange ? 'bg-zinc-800 text-zinc-300 rounded-none' : 'text-zinc-500 hover:text-white'}`}
                       >
                         {d}
                       </button>

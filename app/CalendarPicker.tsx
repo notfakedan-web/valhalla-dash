@@ -7,13 +7,10 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
   const [isOpen, setIsOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  // Prevent background scrolling when modal is open
+  // Block background scroll to keep position fixed
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
+    if (isOpen) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = 'unset';
     return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
 
@@ -60,58 +57,58 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
 
   return (
     <>
-      {/* TRIGGER BUTTON */}
       <button 
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-lg text-xs font-medium text-zinc-300 transition-all relative z-10"
+        className="flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs font-medium text-zinc-300 transition-all"
       >
         <CalendarIcon size={14} className="text-zinc-500" />
         <span>{formatDate(date?.from)} - {formatDate(date?.to)}</span>
       </button>
 
-      {/* THE MODAL - Centered on screen */}
       {isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="!fixed !inset-0 !z-[99999] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
           
-          {/* Background click area to close */}
           <div className="absolute inset-0" onClick={() => setIsOpen(false)} />
           
-          <div className="relative bg-[#09090b] border border-zinc-800 w-full max-w-sm rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+          {/* FIX: We set a fixed height (h-[580px]) and h-max to prevent 
+             the modal from recalculating its center point when you click.
+          */}
+          <div className="relative bg-[#09090b] border border-zinc-800 w-full max-w-[340px] h-[580px] rounded-3xl shadow-2xl overflow-hidden flex flex-col">
             
             {/* HEADER */}
-            <div className="flex justify-between items-center p-4 border-b border-zinc-800 bg-[#09090b]">
-                <span className="text-xs font-bold text-white uppercase tracking-widest">Select Dates</span>
-                <button onClick={() => setIsOpen(false)} className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 transition-colors">
-                  <X size={18} />
+            <div className="flex justify-between items-center p-5 border-b border-zinc-800 bg-[#09090b]">
+                <span className="text-[10px] font-black tracking-[0.2em] text-zinc-500 uppercase">Select Timeline</span>
+                <button onClick={() => setIsOpen(false)} className="p-2 bg-zinc-900 rounded-full text-zinc-400">
+                  <X size={16} />
                 </button>
             </div>
 
-            {/* SCROLLABLE BODY */}
-            <div className="overflow-y-auto p-5 custom-scrollbar flex-1 bg-[#09090b]">
+            {/* BODY */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-6 bg-[#09090b]">
               
               {/* QUICK SELECT */}
-              <div className="grid grid-cols-3 gap-2 mb-6">
+              <div className="grid grid-cols-3 gap-2">
                 {[0, 1, 7, 30, 90, 365].map(d => (
                   <button 
                     key={d} 
                     onClick={() => handleQuickSelect(d)} 
-                    className="py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] font-bold text-zinc-400 hover:text-white hover:border-zinc-600 transition-all"
+                    className="py-2.5 bg-zinc-900/50 border border-zinc-800 rounded-xl text-[10px] font-bold text-zinc-400 hover:text-white transition-all active:scale-95"
                   >
-                    {d === 0 ? 'Today' : d === 1 ? 'Yesterday' : `${d} Days`}
+                    {d === 0 ? 'Today' : d === 1 ? 'Yesterday' : `${d}D`}
                   </button>
                 ))}
               </div>
 
               {/* CALENDAR GRID */}
-              <div className="bg-zinc-900/50 rounded-xl p-3 border border-zinc-800/50">
-                <div className="flex justify-between items-center mb-4">
-                   <button onClick={() => setCurrentMonth(new Date(year, month - 1))} className="p-1 hover:bg-zinc-800 rounded text-zinc-400"><ChevronLeft size={16}/></button>
+              <div className="bg-zinc-900/30 rounded-2xl p-4 border border-zinc-800/50">
+                <div className="flex justify-between items-center mb-6">
+                   <button onClick={() => setCurrentMonth(new Date(year, month - 1))} className="p-1 text-zinc-500 hover:text-white"><ChevronLeft size={18}/></button>
                    <span className="text-sm font-bold text-white">{monthNames[month]} {year}</span>
-                   <button onClick={() => setCurrentMonth(new Date(year, month + 1))} className="p-1 hover:bg-zinc-800 rounded text-zinc-400"><ChevronRight size={16}/></button>
+                   <button onClick={() => setCurrentMonth(new Date(year, month + 1))} className="p-1 text-zinc-500 hover:text-white"><ChevronRight size={18}/></button>
                 </div>
                 
-                <div className="grid grid-cols-7 gap-1 text-center mb-2">
-                  {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => <span key={d} className="text-[10px] font-bold text-zinc-600 uppercase">{d}</span>)}
+                <div className="grid grid-cols-7 gap-1 text-center mb-3">
+                  {['S','M','T','W','T','F','S'].map(d => <span key={d} className="text-[10px] font-black text-zinc-600">{d}</span>)}
                 </div>
                 
                 <div className="grid grid-cols-7 gap-1">
@@ -123,7 +120,7 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
                       <button 
                         key={d} 
                         onClick={() => handleDateClick(d)} 
-                        className={`h-8 w-full text-xs rounded flex items-center justify-center transition-colors ${selected ? 'bg-white text-black font-bold' : inRange ? 'bg-zinc-800 text-zinc-300 rounded-none' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}
+                        className={`h-9 w-full text-xs rounded-lg flex items-center justify-center transition-all ${selected ? 'bg-white text-black font-black shadow-lg shadow-white/10' : inRange ? 'bg-zinc-800 text-zinc-300 rounded-none' : 'text-zinc-500 hover:text-white'}`}
                       >
                         {d}
                       </button>
@@ -134,10 +131,10 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
             </div>
 
             {/* FOOTER */}
-            <div className="p-4 border-t border-zinc-800 bg-[#09090b]">
+            <div className="p-5 border-t border-zinc-800 bg-[#09090b] pb-8">
                 <button 
                   onClick={() => setIsOpen(false)} 
-                  className="w-full py-3 bg-white text-black font-bold uppercase tracking-widest rounded-lg text-xs hover:bg-zinc-200 transition-colors"
+                  className="w-full py-4 bg-white text-black font-black uppercase tracking-widest rounded-2xl text-[10px] shadow-xl active:scale-[0.98] transition-transform"
                 >
                   Apply Selection
                 </button>

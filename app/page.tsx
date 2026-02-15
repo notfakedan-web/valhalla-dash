@@ -127,7 +127,7 @@ async function DashboardContent({ params }: any) {
 
   const recentCalls = appointments.slice(0, 20);
 
-  // GRAPH LOGIC
+  // GRAPH DATA
   let graphStart = start; let graphEnd = end;
   if (!graphStart && performanceData.length > 0) { const times = performanceData.map(d => new Date(d.date).getTime()); graphStart = new Date(Math.min(...times)); }
   if (!graphEnd && performanceData.length > 0) { const times = performanceData.map(d => new Date(d.date).getTime()); graphEnd = new Date(Math.max(...times)); }
@@ -160,17 +160,18 @@ async function DashboardContent({ params }: any) {
   const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
 
   return (
-    <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans pt-24 lg:pt-10">
+    <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans pb-32 lg:pb-10">
       
-      {/* FLOATING FILTER BUTTON (TOP RIGHT) */}
-      <div className="fixed top-4 right-4 z-[100] flex items-center gap-3">
-        <div className="bg-zinc-900/80 border border-zinc-800 backdrop-blur-md p-1.5 pl-3 rounded-xl flex items-center gap-3 shadow-2xl">
+      {/* 1. FLOATING FILTER BUTTON - FIXED AT BOTTOM ON MOBILE, TOP-RIGHT ON DESKTOP */}
+      <div className="fixed bottom-6 right-6 lg:top-4 lg:right-4 lg:bottom-auto z-[100] flex items-center gap-3">
+        <div className="bg-zinc-900/90 border border-zinc-800 backdrop-blur-xl p-1.5 pl-3 rounded-xl flex items-center gap-3 shadow-2xl border-cyan-500/20">
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 hidden sm:block">Filters:</span>
           <Filters platforms={platforms} closers={closers} setters={setters} />
         </div>
       </div>
 
       <div className="max-w-[1600px] mx-auto">
+        {/* HEADER */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-8 relative">
             <div>
                 <div className="flex items-center gap-2 mb-1">
@@ -181,6 +182,7 @@ async function DashboardContent({ params }: any) {
             </div>
         </div>
 
+        {/* TOP STAT CARDS */}
         <div className="space-y-6 relative z-10">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-zinc-900/40 border border-cyan-500/30 backdrop-blur-sm p-6 rounded-2xl shadow-[0_0_30px_-10px_rgba(6,182,212,0.15)] flex flex-col justify-start h-40">
@@ -218,6 +220,7 @@ async function DashboardContent({ params }: any) {
                 </div>
             </div>
 
+            {/* SECONDARY STATS */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} icon={<Users size={14}/>} />
                 <StatBox label="Calls Due" value={callsDue} icon={<Phone size={14}/>} />
@@ -229,6 +232,7 @@ async function DashboardContent({ params }: any) {
                 <StatBox label="Cash / Close" value={`$${avgCashClose.toFixed(0)}`} highlight />
             </div>
 
+            {/* CHART */}
             <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm relative overflow-hidden h-[340px]">
                 <div className="flex items-center justify-between mb-8 relative z-20">
                     <h3 className="text-xs font-bold uppercase text-zinc-400 tracking-widest">Cash Flow Trend</h3>
@@ -238,15 +242,15 @@ async function DashboardContent({ params }: any) {
                     </div>
                 </div>
                 <div className="h-[220px] w-full relative">
-                    <div className="absolute inset-0 z-0">
-                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6">
+                    <div className="absolute inset-0 z-0 px-2 pb-6">
+                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
                             {[1, 0.5, 0].map(step => (
                                 <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
                                     <span className="absolute -left-8 -top-2 text-[10px] font-medium text-zinc-600 w-6 text-right">${((maxCash * step) / 1000).toFixed(0)}k</span>
                                 </div>
                             ))}
                         </div>
-                        <svg className="w-full h-full overflow-visible pl-2 pb-6" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
+                        <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
                             <defs>
                                 <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.6"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1"/></linearGradient>
                                 <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#22d3ee" /><stop offset="100%" stopColor="#0ea5e9" /></linearGradient>
@@ -261,7 +265,7 @@ async function DashboardContent({ params }: any) {
                             <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} className="opacity-90" />
                         </svg>
                     </div>
-                    <div className="absolute inset-0 z-10 pl-2 pb-6 flex items-end justify-between">
+                    <div className="absolute inset-0 z-10 px-2 pb-6 flex items-end justify-between">
                         {trend.map(([date, count], i) => (
                             <div key={i} className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-crosshair hover:bg-white/5 transition-colors rounded-lg">
                                 <div 
@@ -280,6 +284,7 @@ async function DashboardContent({ params }: any) {
                 </div>
             </div>
 
+            {/* ACTIVITY LOG */}
             <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-sm">
                 <div className="p-4 border-b border-zinc-800/50 flex justify-between items-center bg-zinc-900/20">
                     <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Recent Activity Log</h3>
@@ -313,7 +318,7 @@ async function DashboardContent({ params }: any) {
   );
 }
 
-// --- COMPONENTS ---
+// --- SMALL COMPONENTS ---
 function StatBox({ label, value, icon, highlight = false }: { label: string, value: any, icon?: React.ReactNode, highlight?: boolean }) {
     return (
         <div className={`bg-zinc-900/40 border ${highlight ? 'border-cyan-500/20 bg-cyan-500/5' : 'border-zinc-800/80'} backdrop-blur-sm p-4 rounded-xl transition-all hover:border-cyan-500/20 flex flex-col gap-2 font-sans shadow-sm`}>

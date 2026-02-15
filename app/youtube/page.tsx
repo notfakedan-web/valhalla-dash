@@ -2,10 +2,11 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
 import YouTubeClient from './YouTubeClient';
+import { Loader2 } from 'lucide-react';
 
 // --- ROBUST HELPERS ---
 const cleanName = (name: string) => name ? name.toLowerCase().replace(/[^a-z]/g, '') : '';
@@ -20,6 +21,7 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
+    // Date Filtering Logic
     const startDate = startStr ? new Date(startStr) : null;
     const endDate = endStr ? new Date(endStr) : null;
     if (endDate) endDate.setHours(23, 59, 59, 999);
@@ -41,10 +43,10 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
 
     const leadsDoc = new GoogleSpreadsheet(process.env.LEAD_FLOW_SHEET_ID!, serviceAccountAuth);
     await leadsDoc.loadInfo();
-    const leadsSheet = leadsDoc.sheetsByIndex[0];
+    const leadsSheet = leadsDoc.sheetsByIndex[0]; // Assuming leads are on the first sheet
     const leadsRows = await leadsSheet.getRows();
 
-    // 2. PROCESS SALES
+    // 2. PROCESS SALES (Build Lookup Maps)
     const salesByName = new Map();
     const salesByEmail = new Map();
 
@@ -85,20 +87,23 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
         updateMap(salesByEmail, email);
     });
 
-    // 3. PROCESS LEADS
+    // 3. PROCESS LEADS (New Typeform Structure)
     const videoStats = new Map();
 
     leadsRows.forEach(row => {
+        // Robust Column Finder
         const get = (search: string[]) => {
             const key = leadsSheet.headerValues.find(h => search.some(s => h.toLowerCase().includes(s.toLowerCase())));
             return key ? row.get(key) : '';
         };
 
-        const dateStr = get(['Submitted', 'Date', 'Created']);
+        // A. DATE CHECK (Col T: "Submitted At")
+        const dateStr = get(['Submitted At', 'Submitted', 'Date']);
         if (!isWithinRange(dateStr)) return;
 
+        // B. VIDEO ID (Col R: "utm_content")
         let videoId = 'Unknown Video';
-        const content = get(['utm_content', 'content']) || '';
+        const content = get(['utm_content']) || '';
         if (content.includes('youtu.be/')) videoId = content.split('youtu.be/')[1].split('?')[0];
         else if (content.includes('v=')) videoId = content.split('v=')[1].split('&')[0];
         else if (content) videoId = content;
@@ -106,12 +111,24 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
         if (!videoStats.has(videoId)) videoStats.set(videoId, { id: videoId, leads: 0, qualified: 0, cash: 0, revenue: 0, calls: 0, taken: 0, closed: 0 });
         const curr = videoStats.get(videoId);
 
+        // C. LEAD COUNTING
         curr.leads++;
-        const funds = (get(['funds', 'capital', 'invest']) || '').toLowerCase();
-        if (funds.match(/3k|5k|10k|100k/)) curr.qualified++;
 
+        // D. QUALIFICATION LOGIC (Col G: "Imagine it's 6 months...")
+        // We look for the investment question and check values
+        const investAnswer = (get(['invest right now', 'willing to invest', 'funds you have']) || '').toLowerCase();
+        
+        // Matches $3K-5K, $5K-10K, $10K+ (Adjust regex as needed based on your exact dropdown values)
+        if (investAnswer.match(/3k|5k|10k|20k/)) {
+            curr.qualified++;
+        }
+
+        // E. ATTRIBUTION MATCHING
+        // Col N: Email, Col K: First Name, Col L: Last Name
         const leadEmail = cleanEmail(get(['Email']));
-        const leadName = cleanName((get(['First Name']) || '') + (get(['Last Name']) || ''));
+        const firstName = get(['First name', 'First Name']) || '';
+        const lastName = get(['Last name', 'Last Name']) || '';
+        const leadName = cleanName(firstName + lastName);
         
         const matchedSale = salesByEmail.get(leadEmail) || salesByName.get(leadName);
 
@@ -124,7 +141,7 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
         }
     });
 
-    // 4. METADATA
+    // 4. METADATA FETCHING
     const stats = await Promise.all(Array.from(videoStats.values()).filter((v: any) => v.id !== 'Unknown Video').map(async (v: any) => {
         try {
             const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${v.id}&format=json`, { next: { revalidate: 3600 } });
@@ -137,33 +154,58 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
   } catch (e) { console.error(e); return []; }
 }
 
+// --- SUB-COMPONENT: HANDLES ASYNC DATA ---
+async function YouTubeContent({ params }: any) {
+    const stats = await getYouTubeAttribution(params.start, params.end);
+    const sort = params.sort || 'aov';
+  
+    const sortedStats = [...stats].sort((a, b) => {
+        if (sort === 'cash_call') return (b.cash/b.calls||0) - (a.cash/a.calls||0);
+        if (sort === 'cash_app') return (b.cash/b.qualified||0) - (a.cash/a.qualified||0);
+        if (sort === 'cash_optin') return (b.cash/b.leads||0) - (a.cash/a.leads||0);
+        return (b.cash/b.closed||0) - (a.cash/a.closed||0); 
+    });
+  
+    const totals = stats.reduce((acc: any, v: any) => ({
+        leads: acc.leads + v.leads,
+        qualified: acc.qualified + v.qualified,
+        calls: acc.calls + v.calls,
+        taken: acc.taken + v.taken,
+        closed: acc.closed + v.closed,
+        cash: acc.cash + v.cash
+    }), { leads: 0, qualified: 0, calls: 0, taken: 0, closed: 0, cash: 0 });
+
+    return (
+      <YouTubeClient 
+        stats={sortedStats} 
+        totals={totals} 
+        params={params} 
+        sort={sort} 
+      />
+    );
+}
+
+// --- LOADING FALLBACK ---
+function LoadingFallback() {
+    return (
+        <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center gap-4">
+            <Loader2 className="w-10 h-10 text-red-600 animate-spin" />
+            <div className="text-center space-y-1">
+                <h3 className="text-lg font-bold text-white uppercase tracking-widest animate-pulse">Loading Data...</h3>
+                <p className="text-xs text-zinc-500 font-mono">Syncing with database</p>
+            </div>
+        </div>
+    );
+}
+
+// --- MAIN PAGE ---
 export default async function YouTubePage({ searchParams }: { searchParams: Promise<any> }) {
   const params = await searchParams;
-  const stats = await getYouTubeAttribution(params.start, params.end);
-  const sort = params.sort || 'aov';
-
-  const sortedStats = [...stats].sort((a, b) => {
-      if (sort === 'cash_call') return (b.cash/b.calls||0) - (a.cash/a.calls||0);
-      if (sort === 'cash_app') return (b.cash/b.qualified||0) - (a.cash/a.qualified||0);
-      if (sort === 'cash_optin') return (b.cash/b.leads||0) - (a.cash/a.leads||0);
-      return (b.cash/b.closed||0) - (a.cash/a.closed||0); 
-  });
-
-  const totals = stats.reduce((acc: any, v: any) => ({
-      leads: acc.leads + v.leads,
-      qualified: acc.qualified + v.qualified,
-      calls: acc.calls + v.calls,
-      taken: acc.taken + v.taken,
-      closed: acc.closed + v.closed,
-      cash: acc.cash + v.cash
-  }), { leads: 0, qualified: 0, calls: 0, taken: 0, closed: 0, cash: 0 });
+  const key = JSON.stringify(params);
 
   return (
-    <YouTubeClient 
-      stats={sortedStats} 
-      totals={totals} 
-      params={params} 
-      sort={sort} 
-    />
+    <Suspense key={key} fallback={<LoadingFallback />}>
+        <YouTubeContent params={params} />
+    </Suspense>
   );
 }

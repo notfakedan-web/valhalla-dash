@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function CalendarPicker({ date, setDate }: { date: any, setDate: any }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -49,54 +49,58 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   return (
-    <div className="relative">
-      {/* TRIGGER BUTTON */}
+    <>
+      {/* 1. THE TRIGGER BUTTON (This stays in your filter bar) */}
       <button 
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => setIsOpen(true)}
         className="flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-lg text-xs font-medium text-zinc-300 transition-all"
       >
         <CalendarIcon size={14} className="text-zinc-500" />
         <span>{formatDate(date?.from)} - {formatDate(date?.to)}</span>
       </button>
 
-      {/* OVERLAY & POPUP */}
+      {/* 2. THE MODAL (Portal-style fixed overlay) */}
       {isOpen && (
-        <div className="fixed inset-0 z-[9999] lg:absolute lg:inset-auto lg:top-full lg:right-0 lg:left-auto lg:z-50">
+        <div className="fixed inset-0 z-[99999] flex items-end sm:items-center justify-center sm:p-4">
           
-          {/* MOBILE BACKDROP (Darkens screen) */}
+          {/* DARK BACKDROP */}
           <div 
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 bg-black/90 backdrop-blur-sm transition-opacity"
             onClick={() => setIsOpen(false)}
           />
 
-          {/* MODAL WINDOW
-              Mobile: Fixed at BOTTOM (bottom-0), Width 100%, Rounded Top only.
-              Desktop: Absolute Dropdown, Rounded Full.
-          */}
-          <div className={`
-            fixed bottom-0 left-0 right-0 w-full bg-[#09090b] border-t border-zinc-800 rounded-t-2xl shadow-2xl flex flex-col max-h-[85vh]
-            lg:static lg:w-[320px] lg:border lg:rounded-2xl lg:mt-2
-          `}>
+          {/* POPUP WINDOW */}
+          <div className="relative w-full max-w-sm bg-[#09090b] border-t sm:border border-zinc-800 sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in slide-in-from-bottom-5 fade-in duration-200">
             
-            {/* MOBILE DRAG HANDLE (Visual Cue) */}
-            <div className="w-full flex justify-center pt-3 pb-1 lg:hidden">
-                <div className="w-12 h-1 bg-zinc-800 rounded-full" />
+            {/* MOBILE HANDLE (Visual cue) */}
+            <div className="w-full flex justify-center pt-3 pb-1 sm:hidden bg-[#09090b]">
+                <div className="w-12 h-1.5 bg-zinc-800 rounded-full" />
             </div>
 
             {/* SCROLLABLE CONTENT */}
-            <div className="overflow-y-auto p-5 custom-scrollbar">
+            <div className="overflow-y-auto p-5 custom-scrollbar bg-[#09090b]">
               
-              {/* COMPACT QUICK SELECT GRID */}
+              {/* QUICK SELECT GRID */}
               <div className="grid grid-cols-3 gap-2 mb-6 pb-4 border-b border-zinc-800">
-                 <button onClick={() => handleQuickSelect(0)} className="px-2 py-2 bg-zinc-800/50 rounded text-[10px] text-zinc-300 font-medium hover:bg-zinc-800">Today</button>
-                 <button onClick={() => handleQuickSelect(1)} className="px-2 py-2 bg-zinc-800/50 rounded text-[10px] text-zinc-300 font-medium hover:bg-zinc-800">Yesterday</button>
-                 <button onClick={() => handleQuickSelect(7)} className="px-2 py-2 bg-zinc-800/50 rounded text-[10px] text-zinc-300 font-medium hover:bg-zinc-800">7 Days</button>
-                 <button onClick={() => handleQuickSelect(30)} className="px-2 py-2 bg-zinc-800/50 rounded text-[10px] text-zinc-300 font-medium hover:bg-zinc-800">30 Days</button>
-                 <button onClick={() => handleQuickSelect(90)} className="px-2 py-2 bg-zinc-800/50 rounded text-[10px] text-zinc-300 font-medium hover:bg-zinc-800">90 Days</button>
-                 <button onClick={() => handleQuickSelect(365)} className="px-2 py-2 bg-zinc-800/50 rounded text-[10px] text-zinc-300 font-medium hover:bg-zinc-800">Year</button>
+                 {[
+                   { label: 'Today', days: 0 },
+                   { label: 'Yesterday', days: 1 },
+                   { label: '7 Days', days: 7 },
+                   { label: '30 Days', days: 30 },
+                   { label: '90 Days', days: 90 },
+                   { label: 'Year', days: 365 }
+                 ].map((qs) => (
+                   <button 
+                     key={qs.label}
+                     onClick={() => handleQuickSelect(qs.days)} 
+                     className="px-2 py-2 bg-zinc-800/40 border border-zinc-800 rounded text-[10px] text-zinc-400 font-medium hover:bg-zinc-800 hover:text-white transition-colors"
+                   >
+                     {qs.label}
+                   </button>
+                 ))}
               </div>
 
-              {/* CALENDAR HEADER */}
+              {/* CALENDAR CONTROLS */}
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm font-bold text-white">{monthNames[month]} {year}</span>
                 <div className="flex gap-1">
@@ -122,9 +126,9 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
                       key={day}
                       onClick={() => handleDateClick(day)}
                       className={`
-                        h-8 w-full text-xs rounded-lg flex items-center justify-center transition-all relative
-                        ${selected ? 'bg-cyan-600 text-white font-bold' : ''}
-                        ${inRange ? 'bg-cyan-900/20 text-cyan-200 rounded-none' : ''}
+                        h-9 w-full text-xs rounded-lg flex items-center justify-center transition-all relative
+                        ${selected ? 'bg-white text-black font-bold shadow-lg' : ''}
+                        ${inRange ? 'bg-zinc-800 text-white rounded-none mx-[-2px]' : ''}
                         ${!selected && !inRange ? 'text-zinc-400 hover:bg-zinc-800 hover:text-white' : ''}
                       `}
                     >
@@ -135,8 +139,8 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
               </div>
             </div>
 
-            {/* FOOTER ACTIONS */}
-            <div className="p-4 border-t border-zinc-800 bg-[#09090b] flex justify-between items-center pb-8 lg:pb-4">
+            {/* STICKY FOOTER */}
+            <div className="p-4 border-t border-zinc-800 bg-[#09090b] flex justify-between items-center pb-8 sm:pb-4">
                <button 
                   onClick={() => setIsOpen(false)}
                   className="text-xs font-bold text-zinc-500 hover:text-zinc-300 uppercase tracking-wide px-2"
@@ -145,15 +149,15 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
                </button>
                <button 
                   onClick={() => setIsOpen(false)} 
-                  className="px-6 py-3 bg-white text-black text-xs font-bold rounded-xl hover:bg-zinc-200 transition-colors uppercase tracking-wide w-1/2 text-center"
+                  className="px-6 py-3 bg-white text-black text-xs font-bold rounded-xl hover:bg-zinc-200 transition-colors uppercase tracking-wide w-1/2 text-center shadow-lg shadow-white/5"
                >
-                 Apply Dates
+                 Apply
                </button>
             </div>
 
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

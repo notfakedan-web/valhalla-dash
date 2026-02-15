@@ -1,50 +1,40 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 export default function CalendarPicker({ date, setDate }: { date: any, setDate: any }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  // Wait for mount to use Portals safely in Next.js
+  // Prevent background scrolling when modal is open
   useEffect(() => {
-    setMounted(true);
-    if (isOpen) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = 'unset';
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
     return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
 
   const formatDate = (d: Date | undefined) => d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Select';
 
-  // --- CALENDAR LOGIC ---
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDay = new Date(year, month, 1).getDay();
+  
   const blanks = Array(firstDay).fill(null);
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   const handleDateClick = (day: number) => {
-    const target = new Date(year, month, day);
+    const newDate = new Date(year, month, day);
     if (!date?.from || (date.from && date.to)) {
-      setDate({ from: target, to: undefined });
+      setDate({ from: newDate, to: undefined });
     } else {
-      if (target < date.from) setDate({ from: target, to: date.from });
-      else setDate({ from: date.from, to: target });
+      if (newDate < date.from) setDate({ from: newDate, to: date.from });
+      else setDate({ from: date.from, to: newDate });
     }
-  };
-
-  const handleQuickSelect = (daysAgo: number | string) => {
-    const to = new Date();
-    const from = new Date();
-    if (daysAgo === 'all') from.setFullYear(2020);
-    else from.setDate(to.getDate() - (daysAgo as number));
-    setDate({ from, to });
-    setIsOpen(false);
   };
 
   const isSelected = (day: number) => {
@@ -58,114 +48,112 @@ export default function CalendarPicker({ date, setDate }: { date: any, setDate: 
     return target > date.from && target < date.to;
   };
 
-  // --- SECTION 1: THE TRIGGER (STAYS IN FILTER BAR) ---
-  const Trigger = (
-    <div className="relative">
-      <button 
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 bg-[#09090b] border border-zinc-800 hover:border-zinc-700 text-zinc-300 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all shadow-sm"
-      >
-        <CalendarIcon size={14} className="text-zinc-500" />
-        <span>{formatDate(date?.from)} - {formatDate(date?.to)}</span>
-        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 ml-1"></div>
-      </button>
-    </div>
-  );
+  const handleQuickSelect = (daysAgo: number) => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - daysAgo);
+    setDate({ from, to });
+    setIsOpen(false);
+  };
 
-  // --- SECTION 2: THE DROPDOWN (FLOATS CENTERED ON SCREEN) ---
-  const Dropdown = (
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setIsOpen(false)} />
-      
-      {/* Centered Modal Content */}
-      <div className="relative bg-[#09090b] border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row w-full max-w-[340px] md:max-w-[640px] max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
-        
-        {/* Quick Select Sidebar */}
-        <div className="bg-[#0c0c0e] border-b md:border-b-0 md:border-r border-zinc-800 p-5 md:w-48 flex-shrink-0 flex flex-col gap-1.5">
-          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-3 ml-2">Quick Select</span>
-          <div className="grid grid-cols-3 md:flex md:flex-col gap-1.5">
-            {[
-              { l: 'Today', v: 0 }, { l: 'Yesterday', v: 1 }, { l: '7 Days', v: 7 }, 
-              { l: '30 Days', v: 30 }, { l: '90 Days', v: 90 }, { l: '365 Days', v: 365 }, { l: 'All Time', v: 'all' }
-            ].map((item) => (
-              <button 
-                key={item.l}
-                onClick={() => handleQuickSelect(item.v)}
-                className="text-center md:text-left px-3 py-2 text-[10px] md:text-xs font-bold text-zinc-400 hover:text-white bg-zinc-900 md:bg-transparent border border-zinc-800 md:border-none rounded-lg transition-colors"
-              >
-                {item.l}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Calendar Grid */}
-        <div className="p-6 flex-1 flex flex-col bg-[#09090b] min-h-0">
-          <div className="flex justify-between items-center mb-6 px-1">
-            <button onClick={() => setCurrentMonth(new Date(year, month - 1))} className="p-1 hover:bg-zinc-800 rounded text-zinc-500 transition-colors">
-              <ChevronLeft size={18} />
-            </button>
-            <span className="text-sm font-bold text-white tracking-wide">{monthNames[month]} {year}</span>
-            <button onClick={() => setCurrentMonth(new Date(year, month + 1))} className="p-1 hover:bg-zinc-800 rounded text-zinc-500 transition-colors">
-              <ChevronRight size={18} />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-7 gap-1 text-center mb-3">
-            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
-              <span key={d} className="text-[10px] font-black text-zinc-700 uppercase tracking-widest">{d}</span>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-1 overflow-y-auto">
-            {blanks.map((_, i) => <div key={`b-${i}`} />)}
-            {days.map(day => (
-              <button
-                key={day}
-                onClick={() => handleDateClick(day)}
-                className={`
-                  w-8 h-8 text-xs rounded-full flex items-center justify-center transition-all mx-auto
-                  ${isSelected(day) ? 'bg-white text-black font-black shadow-lg shadow-white/10' : isInRange(day) ? 'bg-zinc-800 text-zinc-200 rounded-none' : 'text-zinc-500 hover:text-white'}
-                `}
-              >
-                {day}
-              </button>
-            ))}
-          </div>
-
-          {/* Action Footer */}
-          <div className="mt-8 pt-6 border-t border-zinc-800 flex items-center justify-between">
-            <button 
-              onClick={() => setDate({ from: undefined, to: undefined })}
-              className="text-[10px] font-black text-zinc-600 hover:text-white uppercase tracking-[0.2em] transition-colors"
-            >
-              Reset
-            </button>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => setIsOpen(false)}
-                className="px-4 py-2 text-[10px] font-bold text-zinc-500 hover:text-white uppercase tracking-widest transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={() => setIsOpen(false)}
-                className="px-6 py-2.5 bg-white text-black font-black text-[10px] rounded-xl uppercase tracking-widest hover:bg-zinc-200 transition-colors shadow-lg active:scale-95"
-              >
-                Apply
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   return (
     <>
-      {Trigger}
-      {isOpen && mounted && createPortal(Dropdown, document.body)}
+      {/* TRIGGER BUTTON: This stays in the bar */}
+      <button 
+        onClick={() => setIsOpen(true)}
+        className="flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-lg text-xs font-medium text-zinc-300 transition-all"
+      >
+        <CalendarIcon size={14} className="text-zinc-500" />
+        <span className="whitespace-nowrap">{formatDate(date?.from)} - {formatDate(date?.to)}</span>
+      </button>
+
+      {/* THE MODAL: Uses !fixed and !inset-0 to ignore the bar's position */}
+      {isOpen && (
+        <div className="!fixed !inset-0 !z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          
+          {/* Invisible click layer to close when tapping outside */}
+          <div className="absolute inset-0" onClick={() => setIsOpen(false)} />
+
+          {/* THE CONTENT BOX: Centered relative to the screen, not the button */}
+          <div className="relative bg-[#09090b] border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* MODAL HEADER */}
+            <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-[#0c0c0e]">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Timeline Selector</span>
+              <button onClick={() => setIsOpen(false)} className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* SCROLLABLE BODY */}
+            <div className="overflow-y-auto p-5 custom-scrollbar flex-1 bg-[#09090b]">
+              
+              {/* QUICK SELECT GRID */}
+              <div className="grid grid-cols-3 gap-2 mb-6">
+                {[
+                    { l: 'Today', d: 0 },
+                    { l: 'Yesterday', d: 1 },
+                    { l: '7 Days', d: 7 },
+                    { l: '30 Days', d: 30 },
+                    { l: '90 Days', d: 90 },
+                    { l: 'Year', d: 365 }
+                ].map(item => (
+                  <button 
+                    key={item.l} 
+                    onClick={() => handleQuickSelect(item.d)} 
+                    className="py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-[10px] font-bold text-zinc-400 hover:text-white hover:border-zinc-600 transition-all"
+                  >
+                    {item.l}
+                  </button>
+                ))}
+              </div>
+
+              {/* CALENDAR SECTION */}
+              <div className="bg-zinc-900/40 rounded-2xl p-4 border border-zinc-800/50">
+                <div className="flex justify-between items-center mb-6 px-1">
+                   <button onClick={() => setCurrentMonth(new Date(year, month - 1))} className="p-1 text-zinc-500 hover:text-white"><ChevronLeft size={18}/></button>
+                   <span className="text-sm font-bold text-white">{monthNames[month]} {year}</span>
+                   <button onClick={() => setCurrentMonth(new Date(year, month + 1))} className="p-1 text-zinc-500 hover:text-white"><ChevronRight size={18}/></button>
+                </div>
+                
+                <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                  {['S','M','T','W','T','F','S'].map(d => <span key={d} className="text-[10px] font-black text-zinc-600">{d}</span>)}
+                </div>
+                
+                <div className="grid grid-cols-7 gap-1">
+                  {blanks.map((_, i) => <div key={`b-${i}`} />)}
+                  {days.map(d => {
+                    const selected = isSelected(d);
+                    const inRange = isInRange(d);
+                    return (
+                      <button 
+                        key={d} 
+                        onClick={() => handleDateClick(d)} 
+                        className={`h-9 w-full text-xs rounded-lg flex items-center justify-center transition-all ${selected ? 'bg-white text-black font-black shadow-lg shadow-white/10' : inRange ? 'bg-zinc-800 text-zinc-300 rounded-none' : 'text-zinc-500 hover:text-white'}`}
+                      >
+                        {d}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* APPLY BUTTON (STICKY) */}
+            <div className="p-5 border-t border-zinc-800 bg-[#0c0c0e]">
+              <button 
+                onClick={() => setIsOpen(false)} 
+                className="w-full py-4 bg-white text-black font-black uppercase tracking-widest rounded-2xl text-[10px] shadow-xl active:scale-[0.98] transition-transform"
+              >
+                Apply Selection
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </>
   );
 }

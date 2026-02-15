@@ -63,7 +63,6 @@ async function getApplicationsCount(start: Date | null, end: Date | null) {
                  return k ? row.get(k) : '';
             };
 
-            // LOOK FOR COL T: "Submitted At"
             const rawDate = getLeadVal(['Submitted At', 'Submitted', 'Date']);
             if (!rawDate) return false;
             
@@ -92,7 +91,6 @@ async function DashboardContent({ params }: any) {
 
   const totalApplications = await getApplicationsCount(start, end);
 
-  // ... (Rest of processing logic remains the same) ...
   const performanceData = allRawData.filter(d => {
     if (!d.date) return false;
     const dDate = new Date(d.date);
@@ -129,7 +127,7 @@ async function DashboardContent({ params }: any) {
 
   const recentCalls = appointments.slice(0, 20);
 
-  // GRAPH
+  // GRAPH LOGIC
   let graphStart = start; let graphEnd = end;
   if (!graphStart && performanceData.length > 0) { const times = performanceData.map(d => new Date(d.date).getTime()); graphStart = new Date(Math.min(...times)); }
   if (!graphEnd && performanceData.length > 0) { const times = performanceData.map(d => new Date(d.date).getTime()); graphEnd = new Date(Math.max(...times)); }
@@ -162,19 +160,24 @@ async function DashboardContent({ params }: any) {
   const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
 
   return (
-    <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans">
+    <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans pt-24 lg:pt-10">
+      
+      {/* FLOATING FILTER BUTTON (TOP RIGHT) */}
+      <div className="fixed top-4 right-4 z-[100] flex items-center gap-3">
+        <div className="bg-zinc-900/80 border border-zinc-800 backdrop-blur-md p-1.5 pl-3 rounded-xl flex items-center gap-3 shadow-2xl">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 hidden sm:block">Filters:</span>
+          <Filters platforms={platforms} closers={closers} setters={setters} />
+        </div>
+      </div>
+
       <div className="max-w-[1600px] mx-auto">
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-8 relative z-[100]">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-8 relative">
             <div>
                 <div className="flex items-center gap-2 mb-1">
                     <Activity size={16} className="text-cyan-500" />
                     <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">Executive Overview</span>
                 </div>
                 <h1 className="text-3xl font-bold tracking-tight text-white">Valhalla <span className="text-cyan-500">OS</span></h1>
-            </div>
-            <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg flex flex-wrap items-center gap-4 shadow-sm">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2">Filters:</span>
-                <Filters platforms={platforms} closers={closers} setters={setters} />
             </div>
         </div>
 

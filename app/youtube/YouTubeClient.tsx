@@ -47,7 +47,6 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
     const [copiedId, setCopiedId] = useState<string | null>(null);
     const [manualCopied, setManualCopied] = useState(false);
     
-    // Optimistic videos now store the 'savedUrl' used to create them
     const [optimisticVideos, setOptimisticVideos] = useState<any[]>([]);
 
     const extractVideoId = (url: string) => {
@@ -57,9 +56,7 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
         return url; 
     };
 
-    // 1. GENERATE LINK (Header Button)
     const handleManualGenerate = async () => {
-        // Enforce URL entry
         if (!baseUrl) {
             alert("Please enter your Typeform/Landing Page URL first.");
             return;
@@ -74,7 +71,6 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
         setManualCopied(true);
         setTimeout(() => setManualCopied(false), 2000);
 
-        // Optimistic Update
         if (vidId) {
             const existsInStats = stats.some((v: any) => v.id === vidId);
             const existsInLocal = optimisticVideos.some((v: any) => v.id === vidId);
@@ -94,7 +90,7 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                     title: newTitle,
                     thumbnail: `https://i.ytimg.com/vi/${vidId}/mqdefault.jpg`,
                     leads: 0, qualified: 0, cash: 0, revenue: 0, calls: 0, taken: 0, closed: 0,
-                    savedUrl: baseUrl // <--- CRITICAL: REMEMBER THIS URL FOR THIS SESSION
+                    savedUrl: baseUrl 
                 };
                 
                 setOptimisticVideos(prev => [newVideo, ...prev]);
@@ -102,17 +98,12 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
         }
     };
 
-    // 2. COPY LINK (Card Button)
-    // Now accepts the whole video object to check for a 'savedUrl'
     const handleCardCopy = (video: any) => {
-        // Use the URL saved with the video (if new) OR the current input box
         const targetUrl = video.savedUrl || baseUrl;
-
         if (!targetUrl) {
             alert("Please enter your Typeform/Landing Page URL in the box above to generate this link.");
             return;
         }
-
         const separator = targetUrl.includes('?') ? '&' : '?';
         const link = `${targetUrl}${separator}utm_source=youtube&utm_medium=organic&utm_content=${video.id}`;
         
@@ -127,19 +118,16 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
         <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans p-6 md:p-10">
             <div className="max-w-[1600px] mx-auto space-y-12">
                 
-                {/* HEADER */}
-                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-10 relative z-50">
-                    <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">Traffic Source</span>
-                            <div className="w-1 h-1 rounded-full bg-zinc-700" />
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-500">YouTube Organic</span>
-                        </div>
-                        <h1 className="text-4xl font-black tracking-tighter text-white italic uppercase">Content <span className="text-red-500">Engine</span></h1>
-                    </div>
-                    
-                    <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg flex flex-wrap items-center gap-4 shadow-sm">
+                {/* ACTION BAR: JUST FILTERS, NO TITLE */}
+                <div className="flex items-center justify-end mb-8">
+                    {/* Desktop View: Styled Box */}
+                    <div className="hidden md:flex bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg items-center gap-4 shadow-sm relative z-50">
                         <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
+                        <Filters platforms={[]} closers={[]} setters={[]} />
+                    </div>
+
+                    {/* Mobile View: Clean Calendar Only */}
+                    <div className="md:hidden flex items-center relative z-50">
                         <Filters platforms={[]} closers={[]} setters={[]} />
                     </div>
                 </div>
@@ -193,7 +181,6 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                         </div>
                     </div>
 
-                    {/* UNIFIED SUMMARY GRID */}
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-3">
                         <SummaryCard label="Applications" value={totals.qualified.toLocaleString()} />
                         <SummaryCard label="Opt-ins" value={totals.leads.toLocaleString()} />
@@ -245,7 +232,6 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                                     <MetricRow label="AOV" value={`$${aov.toLocaleString(undefined, {maximumFractionDigits:0})}`} color="text-purple-400" icon={<DollarSign size={10} />} />
                                 </div>
 
-                                {/* VIDEO CARD COPY BUTTON */}
                                 <div className="mt-auto p-4 border-t border-zinc-800 bg-[#0c0c0e]">
                                     <button
                                         onClick={() => handleCardCopy(video)}
@@ -271,12 +257,10 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                                         utm_content={video.id}
                                     </div>
                                 </div>
-
                             </div>
                         );
                     })}
                 </div>
-
             </div>
         </div>
     );

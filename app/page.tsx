@@ -127,7 +127,7 @@ async function DashboardContent({ params }: any) {
 
   const recentCalls = appointments.slice(0, 20);
 
-  // GRAPH LOGIC
+  // GRAPH DATA PROCESSING
   let graphStart = start; let graphEnd = end;
   if (!graphStart && performanceData.length > 0) { const times = performanceData.map(d => new Date(d.date).getTime()); graphStart = new Date(Math.min(...times)); }
   if (!graphEnd && performanceData.length > 0) { const times = performanceData.map(d => new Date(d.date).getTime()); graphEnd = new Date(Math.max(...times)); }
@@ -160,10 +160,10 @@ async function DashboardContent({ params }: any) {
   const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
 
   return (
-    <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans pt-20 lg:pt-10">
+    <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans pt-32 lg:pt-16">
       
-      {/* 1. FIXED FLOATING FILTER BUTTON */}
-      <div className="fixed top-24 right-4 lg:top-4 lg:right-4 z-[100] flex items-center gap-3">
+      {/* 1. LOCKED FLOATING FILTER BUTTON - DOES NOT SCROLL */}
+      <div className="fixed top-24 right-4 lg:top-6 lg:right-6 z-[100]">
         <div className="bg-zinc-900/90 border border-zinc-800 backdrop-blur-xl p-1.5 pl-3 rounded-xl flex items-center gap-3 shadow-2xl border-cyan-500/20">
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 hidden sm:block">Filters:</span>
           <Filters platforms={platforms} closers={closers} setters={setters} />
@@ -171,8 +171,8 @@ async function DashboardContent({ params }: any) {
       </div>
 
       <div className="max-w-[1600px] mx-auto">
-        {/* DASHBOARD CONTENT START */}
         <div className="space-y-6 relative z-10">
+            {/* TOP STAT CARDS */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-zinc-900/40 border border-cyan-500/30 backdrop-blur-sm p-6 rounded-2xl shadow-[0_0_30px_-10px_rgba(6,182,212,0.15)] flex flex-col justify-start h-40">
                      <div className="flex justify-between items-start mb-2">
@@ -200,7 +200,7 @@ async function DashboardContent({ params }: any) {
                     </div>
                     <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums mb-auto">${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}</h2>
                 </div>
-                 <div className="bg-zinc-900/40 border border-purple-500/30 backdrop-blur-sm p-6 rounded-2xl shadow-[0_0_30_30px_-10px_rgba(168,85,247,0.15)] flex flex-col justify-start h-40">
+                 <div className="bg-zinc-900/40 border border-purple-500/30 backdrop-blur-sm p-6 rounded-2xl shadow-[0_0_30px_-10px_rgba(168,85,247,0.15)] flex flex-col justify-start h-40">
                      <div className="flex justify-between items-start mb-2">
                         <p className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">Close Rate (Taken)</p>
                         <Percent size={18} className="text-purple-400" />
@@ -209,6 +209,7 @@ async function DashboardContent({ params }: any) {
                 </div>
             </div>
 
+            {/* SECONDARY STATS */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} icon={<Users size={14}/>} />
                 <StatBox label="Calls Due" value={callsDue} icon={<Phone size={14}/>} />
@@ -220,57 +221,30 @@ async function DashboardContent({ params }: any) {
                 <StatBox label="Cash / Close" value={`$${avgCashClose.toFixed(0)}`} highlight />
             </div>
 
-            <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm relative overflow-hidden h-[340px]">
-                <div className="flex items-center justify-between mb-8 relative z-20">
+            {/* CHART */}
+            <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm h-[340px]">
+                <div className="flex items-center justify-between mb-8">
                     <h3 className="text-xs font-bold uppercase text-zinc-400 tracking-widest">Cash Flow Trend</h3>
-                    <div className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
-                        <span className="text-[10px] font-medium text-zinc-500">Daily Collections</span>
-                    </div>
                 </div>
                 <div className="h-[220px] w-full relative">
-                    <div className="absolute inset-0 z-0 px-2 pb-6">
-                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                            {[1, 0.5, 0].map(step => (
-                                <div key={step} className="w-full border-t border-zinc-800/30 relative leading-none">
-                                    <span className="absolute -left-8 -top-2 text-[10px] font-medium text-zinc-600 w-6 text-right">${((maxCash * step) / 1000).toFixed(0)}k</span>
-                                </div>
-                            ))}
-                        </div>
-                        <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
-                            <defs>
-                                <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.6"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1"/></linearGradient>
-                                <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#22d3ee" /><stop offset="100%" stopColor="#0ea5e9" /></linearGradient>
-                            </defs>
-                            {trend.map(([_, count], i) => {
-                                const barHeight = (count / maxCash) * BAR_MAX_HEIGHT;
-                                const width = (CHART_WIDTH / trend.length) * 0.8;
-                                const x = (i * (CHART_WIDTH / trend.length)) + ((CHART_WIDTH / trend.length) - width) / 2;
-                                const y = CHART_HEIGHT - barHeight;
-                                return count > 0 && <rect key={i} x={x} y={y} width={width} height={barHeight} fill="url(#barGrad)" rx="2" className="opacity-40" />;
-                            })}
-                            <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} className="opacity-90" />
-                        </svg>
-                    </div>
-                    <div className="absolute inset-0 z-10 px-2 pb-6 flex items-end justify-between">
-                        {trend.map(([date, count], i) => (
-                            <div key={i} className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-crosshair hover:bg-white/5 transition-colors rounded-lg">
-                                <div 
-                                    className="absolute opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-0 mb-2 pointer-events-none transform translate-y-[-10px] group-hover:translate-y-0"
-                                    style={{ bottom: `${(count / maxCash) * 80}%`, marginBottom: '15px' }}
-                                >
-                                    <div className="bg-[#18181b] border border-zinc-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow-xl whitespace-nowrap flex flex-col items-center">
-                                        <span>${count.toLocaleString()}</span>
-                                        <div className="absolute -bottom-1 w-2 h-2 bg-[#18181b] border-b border-r border-zinc-700 transform rotate-45"></div>
-                                    </div>
-                                </div>
-                                <div className="absolute -bottom-6 text-[10px] font-medium text-zinc-600 uppercase group-hover:text-zinc-300 transition-colors">{date}</div>
-                            </div>
-                        ))}
-                    </div>
+                    <svg className="w-full h-full overflow-visible pb-6" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
+                        <defs>
+                            <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.6"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1"/></linearGradient>
+                            <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#22d3ee" /><stop offset="100%" stopColor="#0ea5e9" /></linearGradient>
+                        </defs>
+                        {trend.map(([_, count], i) => {
+                            const barHeight = (count / maxCash) * BAR_MAX_HEIGHT;
+                            const width = (CHART_WIDTH / trend.length) * 0.8;
+                            const x = (i * (CHART_WIDTH / trend.length)) + ((CHART_WIDTH / trend.length) - width) / 2;
+                            const y = CHART_HEIGHT - barHeight;
+                            return count > 0 && <rect key={i} x={x} y={y} width={width} height={barHeight} fill="url(#barGrad)" rx="2" className="opacity-40" />;
+                        })}
+                        <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} className="opacity-90" />
+                    </svg>
                 </div>
             </div>
 
+            {/* ACTIVITY LOG */}
             <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-sm">
                 <div className="p-4 border-b border-zinc-800/50 flex justify-between items-center bg-zinc-900/20">
                     <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Recent Activity Log</h3>
@@ -304,7 +278,6 @@ async function DashboardContent({ params }: any) {
   );
 }
 
-// --- SMALL COMPONENTS ---
 function StatBox({ label, value, icon, highlight = false }: { label: string, value: any, icon?: React.ReactNode, highlight?: boolean }) {
     return (
         <div className={`bg-zinc-900/40 border ${highlight ? 'border-cyan-500/20 bg-cyan-500/5' : 'border-zinc-800/80'} backdrop-blur-sm p-4 rounded-xl transition-all hover:border-cyan-500/20 flex flex-col gap-2 font-sans shadow-sm`}>

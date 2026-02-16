@@ -160,9 +160,9 @@ async function DashboardContent({ params }: any) {
   const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
 
   return (
-    <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans pt-32 lg:pt-10">
+    <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans pt-20 lg:pt-10">
       
-      {/* 1. FIXED FLOATING FILTER BUTTON - TOP RIGHT POSITIONED */}
+      {/* 1. FIXED FLOATING FILTER BUTTON */}
       <div className="fixed top-24 right-4 lg:top-4 lg:right-4 z-[100] flex items-center gap-3">
         <div className="bg-zinc-900/90 border border-zinc-800 backdrop-blur-xl p-1.5 pl-3 rounded-xl flex items-center gap-3 shadow-2xl border-cyan-500/20">
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 hidden sm:block">Filters:</span>
@@ -171,18 +171,7 @@ async function DashboardContent({ params }: any) {
       </div>
 
       <div className="max-w-[1600px] mx-auto">
-        {/* HEADER */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-8 relative">
-            <div>
-                <div className="flex items-center gap-2 mb-1">
-                    <Activity size={16} className="text-cyan-500" />
-                    <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">Executive Overview</span>
-                </div>
-                <h1 className="text-3xl font-bold tracking-tight text-white">Valhalla <span className="text-cyan-500">OS</span></h1>
-            </div>
-        </div>
-
-        {/* TOP STAT CARDS */}
+        {/* DASHBOARD CONTENT START */}
         <div className="space-y-6 relative z-10">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-zinc-900/40 border border-cyan-500/30 backdrop-blur-sm p-6 rounded-2xl shadow-[0_0_30px_-10px_rgba(6,182,212,0.15)] flex flex-col justify-start h-40">
@@ -211,7 +200,7 @@ async function DashboardContent({ params }: any) {
                     </div>
                     <h2 className="text-4xl font-bold text-white tracking-tight tabular-nums mb-auto">${totalRev.toLocaleString(undefined, { minimumFractionDigits: 0 })}</h2>
                 </div>
-                 <div className="bg-zinc-900/40 border border-purple-500/30 backdrop-blur-sm p-6 rounded-2xl shadow-[0_0_30px_-10px_rgba(168,85,247,0.15)] flex flex-col justify-start h-40">
+                 <div className="bg-zinc-900/40 border border-purple-500/30 backdrop-blur-sm p-6 rounded-2xl shadow-[0_0_30_30px_-10px_rgba(168,85,247,0.15)] flex flex-col justify-start h-40">
                      <div className="flex justify-between items-start mb-2">
                         <p className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">Close Rate (Taken)</p>
                         <Percent size={18} className="text-purple-400" />
@@ -220,7 +209,6 @@ async function DashboardContent({ params }: any) {
                 </div>
             </div>
 
-            {/* SECONDARY STATS */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} icon={<Users size={14}/>} />
                 <StatBox label="Calls Due" value={callsDue} icon={<Phone size={14}/>} />
@@ -232,7 +220,6 @@ async function DashboardContent({ params }: any) {
                 <StatBox label="Cash / Close" value={`$${avgCashClose.toFixed(0)}`} highlight />
             </div>
 
-            {/* CHART */}
             <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm relative overflow-hidden h-[340px]">
                 <div className="flex items-center justify-between mb-8 relative z-20">
                     <h3 className="text-xs font-bold uppercase text-zinc-400 tracking-widest">Cash Flow Trend</h3>
@@ -284,7 +271,6 @@ async function DashboardContent({ params }: any) {
                 </div>
             </div>
 
-            {/* ACTIVITY LOG */}
             <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-sm">
                 <div className="p-4 border-b border-zinc-800/50 flex justify-between items-center bg-zinc-900/20">
                     <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Recent Activity Log</h3>

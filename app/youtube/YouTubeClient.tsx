@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Youtube, TrendingUp, DollarSign, Users, Phone, Filter, Banknote, Activity, Check, Link as LinkIcon } from 'lucide-react';
 import Link from 'next/link';
+import Filters from '../Filters'; 
 
 // --- SUB-COMPONENTS ---
 const MetricRow = ({ label, value, color, icon }: any) => (
@@ -117,7 +118,19 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
         <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans p-6 md:p-10">
             <div className="max-w-[1600px] mx-auto space-y-12">
                 
-                {/* ACTION BAR REMOVED FROM HERE - IT NOW LIVES IN PAGE.TSX */}
+                {/* ACTION BAR: RESPONSIVE FILTERS */}
+                <div className="flex items-center justify-end mb-8 relative z-50">
+                    {/* DESKTOP: Full Filter Box */}
+                    <div className="hidden md:flex bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg items-center gap-4 shadow-sm">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
+                        <Filters platforms={[]} closers={[]} setters={[]} />
+                    </div>
+
+                    {/* MOBILE: Clean Button Only */}
+                    <div className="flex md:hidden items-center">
+                        <Filters platforms={[]} closers={[]} setters={[]} />
+                    </div>
+                </div>
 
                 {/* LINK FACTORY */}
                 <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-8 mb-8 shadow-lg relative z-0">
@@ -151,7 +164,7 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                     </button>
                 </div>
 
-                {/* ANALYTICS HEADER & SORTING */}
+                {/* CONTENT PERFORMANCE SECTION */}
                 <div className="space-y-6 relative z-0">
                     <div className="flex flex-col items-center gap-4">
                         <h2 className="text-3xl font-black text-zinc-200 tracking-tight uppercase">Content Performance</h2>

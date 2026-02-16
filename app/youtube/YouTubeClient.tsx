@@ -146,7 +146,7 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                         </div>
                     </div>
 
-                    {/* RESTORED SUMMARY GRID */}
+                    {/* FULL SUMMARY GRID - ALL METRICS RESTORED */}
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-11 gap-3">
                         <SummaryCard label="Applications" value={totals.qualified.toLocaleString()} />
                         <SummaryCard label="Opt-ins" value={totals.leads.toLocaleString()} />
@@ -156,9 +156,15 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
                         <SummaryCard label="Closes/Booked" value={`${(totals.calls > 0 ? (totals.closed / totals.calls) * 100 : 0).toFixed(1)}%`} />
                         <SummaryCard label="Avg. Cash/App" value={`$${(totals.qualified > 0 ? totals.cash / totals.qualified : 0).toFixed(0)}`} />
                         <SummaryCard label="Avg. Cash/Opt-in" value={`$${(totals.leads > 0 ? totals.cash / totals.leads : 0).toFixed(0)}`} />
-                        <SummaryCard label="Total Videos" value={displayVideos.length.toString()} highlight="blue" icon={<Youtube size={14}/>} />
+                        
+                        {/* FIX: Changed displayVideos to allVideos */}
+                        <SummaryCard label="Total Videos" value={allVideos.length.toString()} highlight="blue" icon={<Youtube size={14}/>} />
                         <SummaryCard label="Total Calls" value={totals.calls.toLocaleString()} highlight="purple" icon={<Phone size={14}/>} />
                         <SummaryCard label="Total Cash" value={`$${(totals.cash/1000).toFixed(1)}k`} highlight="green" icon={<DollarSign size={14}/>} />
+                    </div>
+
+                    <div className="bg-[#121214] border border-zinc-800 rounded-lg py-3 px-6 text-center text-xs font-bold text-zinc-500 uppercase tracking-wider">
+                        Showing {activeVideos.length} Active Videos ({archivedVideos.length} Archived)
                     </div>
 
                     {/* ACTIVE VIDEO GRID */}
@@ -193,7 +199,7 @@ export default function YouTubeClient({ stats, totals, params, sort }: any) {
     );
 }
 
-// --- RESTORED VIDEO CARD ---
+// --- VIDEO CARD COMPONENT ---
 function VideoCard({ video, onCopy, onArchive, isCopied, isArchived }: any) {
     const closeRate = video.taken > 0 ? (video.closed / video.taken) * 100 : 0;
     const showRate = video.calls > 0 ? (video.taken / video.calls) * 100 : 0;
@@ -201,9 +207,11 @@ function VideoCard({ video, onCopy, onArchive, isCopied, isArchived }: any) {
 
     return (
         <div className="group bg-[#09090b] border border-zinc-800 hover:border-zinc-700 rounded-2xl overflow-hidden transition-all shadow-sm flex flex-col relative">
+            {/* Archive Toggle Button */}
             <button onClick={onArchive} className="absolute top-3 right-3 z-20 p-2 bg-black/60 backdrop-blur-md rounded-lg border border-white/10 text-white/40 hover:text-white hover:bg-red-500/20 transition-all opacity-0 group-hover:opacity-100">
                 {isArchived ? <RotateCcw size={14} /> : <Archive size={14} />}
             </button>
+            
             <div className="relative aspect-video w-full bg-zinc-900">
                 {video.thumbnail && <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover opacity-80" />}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#09090b] via-transparent to-transparent opacity-90" />
@@ -211,20 +219,23 @@ function VideoCard({ video, onCopy, onArchive, isCopied, isArchived }: any) {
                     <h3 className="text-sm font-bold text-white leading-snug line-clamp-2">{video.title}</h3>
                 </div>
             </div>
+
+            {/* FULL ANALYTICS SECTION RESTORED */}
             <div className="p-5 grid grid-cols-2 gap-x-8 gap-y-4 text-xs">
-                <MetricRow label="Leads" value={video.leads} color="text-zinc-300" icon={<Users size={10} />} />
-                <MetricRow label="Qualified" value={video.qualified} color="text-white" icon={<Filter size={10} />} />
-                <MetricRow label="Cash" value={`$${video.cash.toLocaleString()}`} color="text-emerald-400" icon={<DollarSign size={10} />} />
-                <MetricRow label="Revenue" value={`$${video.revenue.toLocaleString()}`} color="text-emerald-400" icon={<Banknote size={10} />} />
+                <MetricRow label="Total Leads" value={video.leads} color="text-zinc-300" icon={<Users size={10} />} />
+                <MetricRow label="Qualified Leads" value={video.qualified} color="text-white" icon={<Filter size={10} />} />
+                <MetricRow label="Cash Collected" value={`$${video.cash.toLocaleString()}`} color="text-emerald-400" icon={<DollarSign size={10} />} />
+                <MetricRow label="Total Revenue" value={`$${video.revenue.toLocaleString()}`} color="text-emerald-400" icon={<Banknote size={10} />} />
                 <MetricRow label="Booked Calls" value={video.calls} color="text-zinc-300" icon={<Phone size={10} />} />
                 <MetricRow label="Show Rate" value={`${showRate.toFixed(1)}%`} color="text-blue-400" icon={<Activity size={10} />} />
                 <MetricRow label="Close Rate" value={`${closeRate.toFixed(1)}%`} color="text-blue-400" icon={<TrendingUp size={10} />} />
                 <MetricRow label="AOV" value={`$${aov.toLocaleString(undefined, {maximumFractionDigits:0})}`} color="text-purple-400" icon={<DollarSign size={10} />} />
             </div>
+
             <div className="mt-auto p-4 border-t border-zinc-800 bg-[#0c0c0e]">
                 <button onClick={() => onCopy(video)} className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all border ${isCopied ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-[#18181b] text-zinc-400 border-zinc-700 hover:text-white"}`}>
                     {isCopied ? <Check size={14} /> : <LinkIcon size={14} />}
-                    <span>{isCopied ? "Copied" : "Copy Tracking Link"}</span>
+                    <span>{isCopied ? "Copied Link" : "Copy Tracking Link"}</span>
                 </button>
             </div>
         </div>

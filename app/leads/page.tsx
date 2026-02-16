@@ -28,19 +28,18 @@ async function getLeadsData() {
             return key ? row.get(key) : '';
         };
 
-        // 1. Contact Info (New Cols: K, L, N)
+        // 1. Contact Info
         const firstName = get(['First name', 'First Name']) || 'Unknown';
         const lastName = get(['Last name', 'Last Name']) || '';
         const email = get(['Email']) || '';
         
-        // 2. Date (New Col: T)
+        // 2. Date
         const dateRaw = get(['Submitted At', 'Submitted', 'Date']);
 
-        // 3. Funds/Revenue (New Col: G or E)
-        // We use the "Willing to invest" answer for the "Funds" tag
+        // 3. Funds/Revenue
         const funds = get(['invest right now', 'willing to invest', 'funds you have']) || 'Unknown';
         
-        // 4. Source (New Col: P)
+        // 4. Source
         let source = get(['utm_source']) || 'Organic';
         source = source.trim();
 
@@ -50,7 +49,7 @@ async function getLeadsData() {
             lastName,
             email,
             source,
-            funds, // "Investment Amount"
+            funds,
             date: dateRaw,
         };
     });
@@ -71,7 +70,7 @@ async function LeadsContent({ params }: any) {
         if (!l.date) return false;
         
         const d = new Date(l.date);
-        if (isNaN(d.getTime())) return false; // Skip invalid dates
+        if (isNaN(d.getTime())) return false;
 
         if (start && d < start) return false;
         if (end && d > end) return false;
@@ -84,7 +83,6 @@ async function LeadsContent({ params }: any) {
 
     // 2. STATS CALCULATION
     const totalLeads = filteredLeads.length;
-    // Qualified if funds contains $3k, $5k, $10k, etc.
     const qualifiedLeads = filteredLeads.filter((l: any) => l.funds && l.funds.match(/3k|5k|10k|20k/i)).length;
     const qualificationRate = totalLeads > 0 ? (qualifiedLeads / totalLeads) * 100 : 0;
 
@@ -112,11 +110,9 @@ async function LeadsContent({ params }: any) {
     if (!graphEnd) graphEnd = today;
 
     const dayMap = new Map<string, number>();
-    // Pre-fill days
     for (let d = new Date(graphStart); d <= graphEnd; d.setDate(d.getDate() + 1)) {
         dayMap.set(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), 0);
     }
-    // Fill data
     filteredLeads.forEach((l: any) => {
         const d = new Date(l.date);
         if (!isNaN(d.getTime())) {
@@ -143,18 +139,16 @@ async function LeadsContent({ params }: any) {
         <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans">
             <div className="max-w-[1600px] mx-auto">
                 
-                {/* HEADER */}
-                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-8 relative z-[100]">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <Search size={16} className="text-blue-500" />
-                            <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">Pipeline Intelligence</span>
-                        </div>
-                        <h1 className="text-3xl font-bold tracking-tight text-white">Lead Flow <span className="text-blue-500">Vault</span></h1>
-                    </div>
-                    
-                    <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg flex flex-wrap items-center gap-4 shadow-sm">
+                {/* ACTION BAR: JUST FILTERS, NO TITLE */}
+                <div className="flex items-center justify-end mb-8">
+                    {/* Desktop View: Styled Box */}
+                    <div className="hidden md:flex bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg items-center gap-4 shadow-sm relative z-[100]">
                         <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2">Filter Data:</span>
+                        <Filters platforms={uniquePlatforms} closers={[]} setters={[]} />
+                    </div>
+
+                    {/* Mobile View: Clean Calendar Only, Pushed to Right */}
+                    <div className="md:hidden flex items-center relative z-[100]">
                         <Filters platforms={uniquePlatforms} closers={[]} setters={[]} />
                     </div>
                 </div>

@@ -127,7 +127,7 @@ async function DashboardContent({ params }: any) {
 
   const recentCalls = appointments.slice(0, 20);
 
-  // GRAPH DATA
+  // GRAPH LOGIC
   let graphStart = start; let graphEnd = end;
   if (!graphStart && performanceData.length > 0) { const times = performanceData.map(d => new Date(d.date).getTime()); graphStart = new Date(Math.min(...times)); }
   if (!graphEnd && performanceData.length > 0) { const times = performanceData.map(d => new Date(d.date).getTime()); graphEnd = new Date(Math.max(...times)); }
@@ -160,10 +160,10 @@ async function DashboardContent({ params }: any) {
   const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
 
   return (
-    <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans pb-32 lg:pb-10">
+    <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans pt-32 lg:pt-10">
       
-      {/* 1. FLOATING FILTER BUTTON - FIXED AT BOTTOM ON MOBILE, TOP-RIGHT ON DESKTOP */}
-      <div className="fixed bottom-6 right-6 lg:top-4 lg:right-4 lg:bottom-auto z-[100] flex items-center gap-3">
+      {/* 1. FIXED FLOATING FILTER BUTTON - TOP RIGHT POSITIONED */}
+      <div className="fixed top-24 right-4 lg:top-4 lg:right-4 z-[100] flex items-center gap-3">
         <div className="bg-zinc-900/90 border border-zinc-800 backdrop-blur-xl p-1.5 pl-3 rounded-xl flex items-center gap-3 shadow-2xl border-cyan-500/20">
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 hidden sm:block">Filters:</span>
           <Filters platforms={platforms} closers={closers} setters={setters} />

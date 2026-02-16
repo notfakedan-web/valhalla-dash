@@ -6,7 +6,6 @@ import React, { Suspense } from 'react';
 import { GoogleSpreadsheet } from 'google-spreadsheet';
 import { JWT } from 'google-auth-library';
 import YouTubeClient from './YouTubeClient';
-import Filters from '../Filters'; 
 import { Loader2 } from 'lucide-react';
 
 // --- ROBUST HELPERS ---
@@ -22,7 +21,6 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    // Date Filtering Logic
     const startDate = startStr ? new Date(startStr) : null;
     const endDate = endStr ? new Date(endStr) : null;
     if (endDate) endDate.setHours(23, 59, 59, 999);
@@ -36,7 +34,6 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
         return true;
     };
 
-    // 1. LOAD DATA
     const salesDoc = new GoogleSpreadsheet(process.env.SHEET_ID!, serviceAccountAuth);
     await salesDoc.loadInfo();
     const salesSheet = salesDoc.sheetsByIndex[0];
@@ -47,7 +44,6 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
     const leadsSheet = leadsDoc.sheetsByIndex[0];
     const leadsRows = await leadsSheet.getRows();
 
-    // 2. PROCESS SALES (Build Lookup Maps)
     const salesByName = new Map();
     const salesByEmail = new Map();
 
@@ -56,10 +52,8 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
             const key = salesSheet.headerValues.find(h => search.some(s => h.toLowerCase().includes(s.toLowerCase())));
             return key ? row.get(key) : '';
         };
-
         const name = cleanName(get(['Prospect Name', 'Name', 'Client']));
         const email = cleanEmail(get(['Email', 'Contact']));
-        
         const cashVal = get(['Cash Collected', 'Cash', 'Collected']);
         const revVal = get(['Revenue', 'Total Revenue']);
         const outcome = (get(['Call Outcome', 'Outcome', 'Status']) || '').toLowerCase();
@@ -83,25 +77,20 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
                 closed: existing.closed + data.closed
             });
         };
-
         updateMap(salesByName, name);
         updateMap(salesByEmail, email);
     });
 
-    // 3. PROCESS LEADS (Matching Algorithm)
     const videoStats = new Map();
-
     leadsRows.forEach(row => {
         const get = (search: string[]) => {
             const key = leadsSheet.headerValues.find(h => search.some(s => h.toLowerCase().includes(s.toLowerCase())));
             return key ? row.get(key) : '';
         };
 
-        // A. DATE CHECK
         const dateStr = get(['Submitted At', 'Submitted', 'Date']);
         if (!isWithinRange(dateStr)) return;
 
-        // B. VIDEO ID
         let videoId = 'Unknown Video';
         const content = get(['utm_content']) || '';
         if (content.includes('youtu.be/')) videoId = content.split('youtu.be/')[1].split('?')[0];
@@ -110,24 +99,17 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
 
         if (!videoStats.has(videoId)) videoStats.set(videoId, { id: videoId, leads: 0, qualified: 0, cash: 0, revenue: 0, calls: 0, taken: 0, closed: 0 });
         const curr = videoStats.get(videoId);
-
-        // C. LEAD COUNTING
         curr.leads++;
 
-        // D. QUALIFICATION LOGIC
         const investAnswer = (get(['invest right now', 'willing to invest', 'funds you have']) || '').toLowerCase();
-        if (investAnswer.match(/3k|5k|10k|20k/)) {
-            curr.qualified++;
-        }
+        if (investAnswer.match(/3k|5k|10k|20k/)) curr.qualified++;
 
-        // E. ATTRIBUTION MATCHING
         const leadEmail = cleanEmail(get(['Email']));
         const firstName = get(['First name', 'First Name']) || '';
         const lastName = get(['Last name', 'Last Name']) || '';
         const leadName = cleanName(firstName + lastName);
         
         const matchedSale = salesByEmail.get(leadEmail) || salesByName.get(leadName);
-
         if (matchedSale) {
             curr.cash += matchedSale.cash;
             curr.revenue += matchedSale.revenue;
@@ -137,7 +119,6 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
         }
     });
 
-    // 4. METADATA FETCHING
     const stats = await Promise.all(Array.from(videoStats.values()).filter((v: any) => v.id !== 'Unknown Video').map(async (v: any) => {
         try {
             const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${v.id}&format=json`, { next: { revalidate: 3600 } });
@@ -150,7 +131,7 @@ async function getYouTubeAttribution(startStr?: string, endStr?: string) {
   } catch (e) { console.error(e); return []; }
 }
 
-// --- SUB-COMPONENT: HANDLES ASYNC DATA ---
+// --- SUB-COMPONENT ---
 async function YouTubeContent({ params }: any) {
     const stats = await getYouTubeAttribution(params.start, params.end);
     const sort = params.sort || 'aov';
@@ -172,21 +153,12 @@ async function YouTubeContent({ params }: any) {
     }), { leads: 0, qualified: 0, calls: 0, taken: 0, closed: 0, cash: 0 });
 
     return (
-      <div className="min-h-screen bg-[#09090b]">
-        {/* HEADER REMOVED - ONLY ACTION BAR REMAINS */}
-        <div className="max-w-[1600px] mx-auto p-6 md:p-10 pb-0">
-            <div className="flex items-center justify-end mb-8 relative z-50">
-                <Filters platforms={[]} closers={[]} setters={[]} />
-            </div>
-        </div>
-
-        <YouTubeClient 
-          stats={sortedStats} 
-          totals={totals} 
-          params={params} 
-          sort={sort} 
-        />
-      </div>
+      <YouTubeClient 
+        stats={sortedStats} 
+        totals={totals} 
+        params={params} 
+        sort={sort} 
+      />
     );
 }
 
@@ -195,10 +167,7 @@ function LoadingFallback() {
     return (
         <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center gap-4">
             <Loader2 className="w-10 h-10 text-red-600 animate-spin" />
-            <div className="text-center space-y-1">
-                <h3 className="text-lg font-bold text-white uppercase tracking-widest animate-pulse">Loading Data...</h3>
-                <p className="text-xs text-zinc-500 font-mono">Syncing with database</p>
-            </div>
+            <h3 className="text-lg font-bold text-white uppercase tracking-widest animate-pulse">Loading Data...</h3>
         </div>
     );
 }

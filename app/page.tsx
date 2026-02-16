@@ -62,19 +62,15 @@ async function getApplicationsCount(start: Date | null, end: Date | null) {
                  const k = sheet.headerValues.find(h => search.some(s => h.toLowerCase().trim().includes(s.toLowerCase().trim())));
                  return k ? row.get(k) : '';
             };
-
             const rawDate = getLeadVal(['Submitted At', 'Submitted', 'Date']);
             if (!rawDate) return false;
-            
             let d = new Date(rawDate);
             if (isNaN(d.getTime()) && rawDate.includes('/')) {
                 const p = rawDate.split(' ')[0].split('/');
                 if (p.length === 3) d = new Date(parseInt(p[2]), parseInt(p[0])-1, parseInt(p[1]));
             }
-            
             if (start && d < start) return false;
             if (end && d > end) return false;
-            
             return true;
         }).length;
     } catch (e) { return 0; }
@@ -163,19 +159,16 @@ async function DashboardContent({ params }: any) {
     <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans">
       <div className="max-w-[1600px] mx-auto">
         
-        {/* HEADER SECTION (ORIGINAL POSITION) */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 mb-8">
-            <div>
-                <div className="flex items-center gap-2 mb-1">
-                    <Activity size={16} className="text-cyan-500" />
-                    <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">Executive Overview</span>
-                </div>
-                <h1 className="text-3xl font-bold tracking-tight text-white">Valhalla <span className="text-cyan-500">OS</span></h1>
+        {/* ACTION BAR: JUST FILTERS, NO TITLE */}
+        <div className="flex items-center justify-end mb-8">
+            {/* Desktop View: Full Filter Box */}
+            <div className="hidden md:flex bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg items-center gap-4 shadow-sm relative z-50">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2">Filters:</span>
+                <Filters platforms={platforms} closers={closers} setters={setters} />
             </div>
 
-            {/* FILTERS (ORIGINAL INLINE POSITION) */}
-            <div className="bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md p-2 pl-4 rounded-lg flex flex-wrap items-center gap-4 shadow-sm">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2">Filters:</span>
+            {/* Mobile View: Just the Calendar Picker, moved to the right */}
+            <div className="md:hidden flex items-center relative z-50">
                 <Filters platforms={platforms} closers={closers} setters={setters} />
             </div>
         </div>
@@ -234,10 +227,6 @@ async function DashboardContent({ params }: any) {
             <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm relative overflow-hidden h-[340px]">
                 <div className="flex items-center justify-between mb-8 relative z-20">
                     <h3 className="text-xs font-bold uppercase text-zinc-400 tracking-widest">Cash Flow Trend</h3>
-                    <div className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
-                        <span className="text-[10px] font-medium text-zinc-500">Daily Collections</span>
-                    </div>
                 </div>
                 <div className="h-[220px] w-full relative">
                     <div className="absolute inset-0 z-0">
@@ -262,22 +251,6 @@ async function DashboardContent({ params }: any) {
                             })}
                             <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} className="opacity-90" />
                         </svg>
-                    </div>
-                    <div className="absolute inset-0 z-10 pl-2 pb-6 flex items-end justify-between">
-                        {trend.map(([date, count], i) => (
-                            <div key={i} className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-crosshair hover:bg-white/5 transition-colors rounded-lg">
-                                <div 
-                                    className="absolute opacity-0 group-hover:opacity-100 transition-opacity duration-200 bottom-0 mb-2 pointer-events-none transform translate-y-[-10px] group-hover:translate-y-0"
-                                    style={{ bottom: `${(count / maxCash) * 80}%`, marginBottom: '15px' }}
-                                >
-                                    <div className="bg-[#18181b] border border-zinc-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow-xl whitespace-nowrap flex flex-col items-center">
-                                        <span>${count.toLocaleString()}</span>
-                                        <div className="absolute -bottom-1 w-2 h-2 bg-[#18181b] border-b border-r border-zinc-700 transform rotate-45"></div>
-                                    </div>
-                                </div>
-                                <div className="absolute -bottom-6 text-[10px] font-medium text-zinc-600 uppercase group-hover:text-zinc-300 transition-colors">{date}</div>
-                            </div>
-                        ))}
                     </div>
                 </div>
             </div>
@@ -316,7 +289,7 @@ async function DashboardContent({ params }: any) {
   );
 }
 
-// --- HELPER COMPONENTS ---
+// StatBox helper
 function StatBox({ label, value, icon, highlight = false }: { label: string, value: any, icon?: React.ReactNode, highlight?: boolean }) {
     return (
         <div className={`bg-zinc-900/40 border ${highlight ? 'border-cyan-500/20 bg-cyan-500/5' : 'border-zinc-800/80'} backdrop-blur-sm p-4 rounded-xl transition-all hover:border-cyan-500/20 flex flex-col gap-2 font-sans shadow-sm`}>
@@ -329,6 +302,7 @@ function StatBox({ label, value, icon, highlight = false }: { label: string, val
     );
 }
 
+// Outcome style helper
 function getOutcomeStyle(outcome: string) {
     const lower = outcome.toLowerCase();
     if (lower.includes('closed') || lower.includes('paid') || lower.includes('full')) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
@@ -341,9 +315,7 @@ function LoadingFallback() {
     return (
         <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center gap-4">
             <Loader2 className="w-10 h-10 text-cyan-500 animate-spin" />
-            <div className="text-center space-y-1">
-                <h3 className="text-lg font-bold text-white uppercase tracking-widest animate-pulse">Loading Dashboard...</h3>
-            </div>
+            <h3 className="text-lg font-bold text-white uppercase tracking-widest animate-pulse">Loading...</h3>
         </div>
     );
 }

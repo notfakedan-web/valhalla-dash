@@ -127,7 +127,7 @@ async function DashboardContent({ params }: any) {
 
   const recentCalls = appointments.slice(0, 20);
 
-  // GRAPH DATA PROCESSING
+  // GRAPH LOGIC
   let graphStart = start; let graphEnd = end;
   if (!graphStart && performanceData.length > 0) { const times = performanceData.map(d => new Date(d.date).getTime()); graphStart = new Date(Math.min(...times)); }
   if (!graphEnd && performanceData.length > 0) { const times = performanceData.map(d => new Date(d.date).getTime()); graphEnd = new Date(Math.max(...times)); }
@@ -160,11 +160,11 @@ async function DashboardContent({ params }: any) {
   const setters = Array.from(new Set(allRawData.map(d => d.setter))).filter(Boolean) as string[];
 
   return (
-    <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans pt-32 lg:pt-16">
+    <div className="min-h-screen p-6 md:p-10 bg-[#09090b] text-zinc-100 font-sans pt-16 lg:pt-10">
       
-      {/* 1. LOCKED FLOATING FILTER BUTTON - DOES NOT SCROLL */}
-      <div className="fixed top-24 right-4 lg:top-6 lg:right-6 z-[100]">
-        <div className="bg-zinc-900/90 border border-zinc-800 backdrop-blur-xl p-1.5 pl-3 rounded-xl flex items-center gap-3 shadow-2xl border-cyan-500/20">
+      {/* 1. FIXED BUTTON: LOCKED TO TOP RIGHT ON MOBILE & DESKTOP */}
+      <div className="fixed top-20 right-4 lg:top-6 lg:right-10 z-[100] flex items-center gap-3">
+        <div className="bg-zinc-900/90 border border-zinc-800 backdrop-blur-xl p-1.5 pl-3 rounded-xl flex items-center gap-3 shadow-[0_20px_50px_rgba(0,0,0,0.5)] border-cyan-500/20">
           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 hidden sm:block">Filters:</span>
           <Filters platforms={platforms} closers={closers} setters={setters} />
         </div>
@@ -172,7 +172,7 @@ async function DashboardContent({ params }: any) {
 
       <div className="max-w-[1600px] mx-auto">
         <div className="space-y-6 relative z-10">
-            {/* TOP STAT CARDS */}
+            {/* NET CASH COLLECTED SECTION - PUSHED UP */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-zinc-900/40 border border-cyan-500/30 backdrop-blur-sm p-6 rounded-2xl shadow-[0_0_30px_-10px_rgba(6,182,212,0.15)] flex flex-col justify-start h-40">
                      <div className="flex justify-between items-start mb-2">
@@ -209,7 +209,7 @@ async function DashboardContent({ params }: any) {
                 </div>
             </div>
 
-            {/* SECONDARY STATS */}
+            {/* REST OF DASHBOARD */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatBox label="Show Rate" value={`${showRate.toFixed(1)}%`} icon={<Users size={14}/>} />
                 <StatBox label="Calls Due" value={callsDue} icon={<Phone size={14}/>} />
@@ -221,46 +221,26 @@ async function DashboardContent({ params }: any) {
                 <StatBox label="Cash / Close" value={`$${avgCashClose.toFixed(0)}`} highlight />
             </div>
 
-            {/* CHART */}
             <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl p-6 shadow-sm h-[340px]">
                 <div className="flex items-center justify-between mb-8">
                     <h3 className="text-xs font-bold uppercase text-zinc-400 tracking-widest">Cash Flow Trend</h3>
                 </div>
                 <div className="h-[220px] w-full relative">
                     <svg className="w-full h-full overflow-visible pb-6" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}>
-                        <defs>
-                            <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity="0.6"/><stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1"/></linearGradient>
-                            <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#22d3ee" /><stop offset="100%" stopColor="#0ea5e9" /></linearGradient>
-                        </defs>
-                        {trend.map(([_, count], i) => {
-                            const barHeight = (count / maxCash) * BAR_MAX_HEIGHT;
-                            const width = (CHART_WIDTH / trend.length) * 0.8;
-                            const x = (i * (CHART_WIDTH / trend.length)) + ((CHART_WIDTH / trend.length) - width) / 2;
-                            const y = CHART_HEIGHT - barHeight;
-                            return count > 0 && <rect key={i} x={x} y={y} width={width} height={barHeight} fill="url(#barGrad)" rx="2" className="opacity-40" />;
-                        })}
                         <polyline fill="none" stroke="url(#lineGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={linePoints.join(' ')} className="opacity-90" />
                     </svg>
                 </div>
             </div>
 
-            {/* ACTIVITY LOG */}
-            <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-sm">
+            <div className="bg-zinc-900/40 border border-zinc-800/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-sm pb-10">
                 <div className="p-4 border-b border-zinc-800/50 flex justify-between items-center bg-zinc-900/20">
                     <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Recent Activity Log</h3>
                 </div>
                 <div className="p-4 overflow-x-auto">
                      <div className="min-w-[800px]">
-                        <div className="grid grid-cols-6 text-[10px] font-medium uppercase text-zinc-500 tracking-wider px-4 mb-3">
-                            <div className="col-span-2">Prospect</div>
-                            <div>Outcome</div>
-                            <div>Closer</div>
-                            <div>Date</div>
-                            <div className="text-right">Cash collected</div>
-                        </div>
                         <div className="space-y-1">
                         {recentCalls.map((call, i) => (
-                            <div key={i} className="grid grid-cols-6 items-center p-3 bg-zinc-800/20 rounded-lg border border-transparent hover:border-zinc-700/50 transition-all group text-xs">
+                            <div key={i} className="grid grid-cols-6 items-center p-3 bg-zinc-800/20 rounded-lg group text-xs">
                                 <div className="col-span-2 font-medium text-zinc-200 truncate pr-4">{call.prospect}</div>
                                 <div><span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full border ${getOutcomeStyle(call.outcome)}`}>{call.outcome}</span></div>
                                 <div className="text-zinc-400">{call.closer}</div>
@@ -278,6 +258,7 @@ async function DashboardContent({ params }: any) {
   );
 }
 
+// --- SMALL COMPONENTS ---
 function StatBox({ label, value, icon, highlight = false }: { label: string, value: any, icon?: React.ReactNode, highlight?: boolean }) {
     return (
         <div className={`bg-zinc-900/40 border ${highlight ? 'border-cyan-500/20 bg-cyan-500/5' : 'border-zinc-800/80'} backdrop-blur-sm p-4 rounded-xl transition-all hover:border-cyan-500/20 flex flex-col gap-2 font-sans shadow-sm`}>
